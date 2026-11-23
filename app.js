@@ -9,7 +9,7 @@ function renderDeclaration() {
   try { record = JSON.parse(store.get('practiceDeclaration') || 'null'); } catch { record = null; }
   if (!record || record.event !== 'SIM-001') { $('#declaration').textContent = 'Sin declaración de práctica. Esto no significa que la persona esté a salvo.'; return; }
   const understood = record.understoodAt ? 'Entendí: '+record.understoodAt+'. Esta declaración no demuestra comprensión. ' : '';
-  const safe = record.safeAt ? 'A salvo: '+record.safeAt+'. ' : '';
+  const safe = record.safeAt ? 'Declaraste estar a salvo: '+record.safeAt+'. ' : 'Seguridad no declarada o declaración retirada. ';
   $('#declaration').textContent = 'Evento de práctica '+record.event+'. '+understood+safe+'Guardado solo en este navegador; no se notificó a ninguna brigada.';
 }
 function saveDeclaration(kind) {
@@ -22,6 +22,25 @@ function saveDeclaration(kind) {
 }
 $('#understood').addEventListener('click', () => saveDeclaration('understoodAt'));
 $('#safe').addEventListener('click', () => saveDeclaration('safeAt'));
+const withdrawSafe = document.createElement('button');
+withdrawSafe.type = 'button';
+withdrawSafe.className = 'button secondary';
+withdrawSafe.textContent = 'Retirar declaración de seguridad';
+$('#safe').after(withdrawSafe);
+withdrawSafe.addEventListener('click', () => {
+  let record;
+  try { record = JSON.parse(store.get('practiceDeclaration') || 'null'); } catch { record = null; }
+  if (!record || !record.safeAt) {
+    $('#declaration').textContent = 'No hay declaración de seguridad guardada. No se notificó a una brigada.';
+    return;
+  }
+  delete record.safeAt;
+  if (!store.set('practiceDeclaration', JSON.stringify(record))) {
+    $('#declaration').textContent = 'No se pudo retirar la declaración local. No se notificó a una brigada.';
+    return;
+  }
+  renderDeclaration();
+});
 renderDeclaration();
 let v=1;$('#update-phase').addEventListener('click',()=>{const phase=$('#phase').value;v++;$('#event-state').textContent='Estado: '+phase;$('#version').textContent='v'+v+' · Datos de práctica';$('#event-title').textContent=phase==='cerrado'?'Simulacro cerrado en Campus Demo':phase==='actualizado'?'Actualización del simulacro':'Simulacro en Campus Demo';$('#event-text').textContent=phase==='cerrado'?'El evento de práctica ha terminado. Una solicitud abierta no se cierra automáticamente.':'Mantén la calma. Aléjate de ventanas y objetos que puedan caer.';$('#phase-msg').textContent='Fase de práctica actualizada. No se ha emitido un aviso real.'});
 for(const [id,cls] of [['large','large-text'],['contrast','high-contrast']]){const e=$('#'+id);e.checked=store.get(id)==='1';document.body.classList.toggle(cls,e.checked);e.addEventListener('change',()=>{document.body.classList.toggle(cls,e.checked);store.set(id,e.checked?'1':'0')})}
@@ -64,6 +83,16 @@ $('#confirm').addEventListener('click', () => {
   const record = {id:'DEMO-'+Date.now(), ...reviewedRequest, time:new Date().toLocaleString('es-PE')};
   const saved = store.set('request', JSON.stringify(record));
   if (saved) {
+    // La nueva necesidad retira la declaración de seguridad solo cuando puede guardarse.
+    let declaration;
+    try { declaration = JSON.parse(store.get('practiceDeclaration') || 'null'); } catch { declaration = null; }
+    let safetyUpdated = true;
+    if (declaration?.safeAt) {
+      delete declaration.safeAt;
+      safetyUpdated = store.set('practiceDeclaration', JSON.stringify(declaration));
+    }
+    if (safetyUpdated) renderDeclaration();
+    else $('#declaration').textContent = 'No se pudo actualizar la declaración de seguridad local. Revísala manualmente.';
     invalidateReview();
     $('#request-status').textContent = 'Simulación '+record.id+' guardada localmente. No fue enviada ni recibida por una brigada.';
   } else {
