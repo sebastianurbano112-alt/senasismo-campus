@@ -8,7 +8,57 @@ let v=1;$('#update-phase').addEventListener('click',()=>{const phase=$('#phase')
 for(const [id,cls] of [['large','large-text'],['contrast','high-contrast']]){const e=$('#'+id);e.checked=store.get(id)==='1';document.body.classList.toggle(cls,e.checked);e.addEventListener('change',()=>{document.body.classList.toggle(cls,e.checked);store.set(id,e.checked?'1':'0')})}
 $('#vibrate').addEventListener('click',()=>{let ok=false;try{ok=!!navigator.vibrate&&navigator.vibrate([150,100,150])}catch{}$('#vibrate-msg').textContent=ok?'Prueba solicitada. La percepción física requiere comprobación en el dispositivo.':'Vibración no disponible o no autorizada en este dispositivo. La información textual sigue disponible.'});
 const guide='Guía de práctica: identifica las rutas oficiales del campus, mantén la calma y sigue las indicaciones de las autoridades. No es un paquete institucional aprobado.';$('#save-guide').addEventListener('click',()=>{$('#guide-msg').textContent=store.set('guide',guide)?'Guía textual de ejemplo guardada en este navegador.':'No fue posible guardar la guía en este navegador.'});$('#view-guide').addEventListener('click',()=>{$('#guide-msg').textContent=store.get('guide')||'Aún no hay una guía guardada.'});
-$('#support-form').addEventListener('submit',e=>{e.preventDefault();const missing=!$('#need').value||!$('#zone').value.trim();$('#need').setAttribute('aria-invalid',String(!$('#need').value));$('#zone').setAttribute('aria-invalid',String(!$('#zone').value.trim()));$('#form-error').textContent=missing?'Selecciona un tipo de apoyo e ingresa una referencia de ejemplo.':'';if(missing){$('#review').hidden=true;return}$('#review-text').textContent='Necesidad: '+$('#need').value+'. Referencia: '+$('#zone').value.trim()+'. Nota: '+($('#note').value.trim()||'Sin nota')+'.';$('#review').hidden=false});$('#edit').addEventListener('click',()=>{$('#review').hidden=true;$('#need').focus()});$('#confirm').addEventListener('click',()=>{const record={id:'DEMO-'+Date.now(),need:$('#need').value,zone:$('#zone').value.trim(),note:$('#note').value.trim(),time:new Date().toLocaleString('es-PE')};const saved=store.set('request',JSON.stringify(record));$('#request-status').textContent=saved?'Simulación '+record.id+' guardada localmente. No fue enviada ni recibida por una brigada.':'No fue posible guardar la simulación.';$('#review').hidden=true});$('#clear-request').addEventListener('click',()=>{store.remove('request');$('#support-form').reset();$('#review').hidden=true;$('#form-error').textContent='';$('#request-status').textContent='La simulación local fue eliminada.'});
+// La confirmación utiliza exactamente los datos revisados y solo crea un caso por operación.
+let reviewedRequest = null;
+let confirmationInProgress = false;
+function invalidateReview() {
+  reviewedRequest = null;
+  $('#review').hidden = true;
+}
+for (const id of ['need', 'zone', 'note']) {
+  $('#'+id).addEventListener('input', invalidateReview);
+  $('#'+id).addEventListener('change', invalidateReview);
+}
+$('#support-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const need = $('#need').value;
+  const zone = $('#zone').value.trim();
+  const note = $('#note').value.trim();
+  $('#need').setAttribute('aria-invalid', String(!need));
+  $('#zone').setAttribute('aria-invalid', String(!zone));
+  if (!need || !zone) {
+    invalidateReview();
+    $('#form-error').textContent = 'Selecciona un tipo de apoyo e ingresa una referencia de ejemplo.';
+    (!need ? $('#need') : $('#zone')).focus();
+    return;
+  }
+  $('#form-error').textContent = '';
+  reviewedRequest = {need, zone, note};
+  $('#review-text').textContent = 'Necesidad: '+need+'. Referencia: '+zone+'. Nota: '+(note||'Sin nota')+'.';
+  $('#review').hidden = false;
+  $('#confirm').focus();
+});
+$('#edit').addEventListener('click', () => { invalidateReview(); $('#need').focus(); });
+$('#confirm').addEventListener('click', () => {
+  if (!reviewedRequest || confirmationInProgress) return;
+  confirmationInProgress = true;
+  const record = {id:'DEMO-'+Date.now(), ...reviewedRequest, time:new Date().toLocaleString('es-PE')};
+  const saved = store.set('request', JSON.stringify(record));
+  if (saved) {
+    invalidateReview();
+    $('#request-status').textContent = 'Simulación '+record.id+' guardada localmente. No fue enviada ni recibida por una brigada.';
+  } else {
+    $('#request-status').textContent = 'No fue posible guardar la simulación. Puedes volver a intentarlo.';
+  }
+  confirmationInProgress = false;
+});
+$('#clear-request').addEventListener('click', () => {
+  store.remove('request');
+  $('#support-form').reset();
+  invalidateReview();
+  $('#form-error').textContent = '';
+  $('#request-status').textContent = 'La simulación local fue eliminada.';
+});
 
 // Entorno académico: los roles, estados y mensajes siguientes son simulados y locales.
 const lab=document.createElement('section');
