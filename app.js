@@ -42,7 +42,39 @@ withdrawSafe.addEventListener('click', () => {
   renderDeclaration();
 });
 renderDeclaration();
-let v=1;$('#update-phase').addEventListener('click',()=>{const phase=$('#phase').value;v++;$('#event-state').textContent='Estado: '+phase;$('#version').textContent='v'+v+' · Datos de práctica';$('#event-title').textContent=phase==='cerrado'?'Simulacro cerrado en Campus Demo':phase==='actualizado'?'Actualización del simulacro':'Simulacro en Campus Demo';$('#event-text').textContent=phase==='cerrado'?'El evento de práctica ha terminado. Una solicitud abierta no se cierra automáticamente.':'Mantén la calma. Aléjate de ventanas y objetos que puedan caer.';$('#phase-msg').textContent='Fase de práctica actualizada. No se ha emitido un aviso real.'});
+// La evolución del evento es un ejercicio local, sin fuente ni reloj institucional.
+const eventMeta = document.createElement('div');
+eventMeta.innerHTML = '<dt>Último cambio de práctica</dt><dd id="event-updated">Sin cambios registrados</dd>';
+$('#version').closest('dl').append(eventMeta);
+const phases = {activo:'Activo', actualizado:'Actualización', cerrado:'Cerrado'};
+let eventDemo;
+try { eventDemo = JSON.parse(store.get('eventDemo') || 'null'); } catch { eventDemo = null; }
+if (!eventDemo || !phases[eventDemo.phase] || !Number.isInteger(eventDemo.version)) {
+  eventDemo = {phase:'activo', version:1, changedAt:'', previous:''};
+}
+function renderEventDemo() {
+  const phase = eventDemo.phase;
+  $('#phase').value = phase;
+  $('#event-state').textContent = 'Estado: '+phases[phase];
+  $('#version').textContent = 'v'+eventDemo.version+' · Datos de práctica';
+  $('#event-title').textContent = phase === 'cerrado' ? 'Simulacro cerrado en Campus Demo' : phase === 'actualizado' ? 'Actualización del simulacro' : 'Simulacro en Campus Demo';
+  $('#event-text').textContent = phase === 'cerrado' ? 'El evento de práctica ha terminado. Una solicitud abierta no se cierra automáticamente.' : 'Mantén la calma. Aléjate de ventanas y objetos que puedan caer.';
+  $('#event-updated').textContent = eventDemo.changedAt ? eventDemo.changedAt+' · '+eventDemo.previous+' → '+phases[phase]+' · hora local del dispositivo' : 'Sin cambios registrados en este navegador';
+}
+$('#update-phase').addEventListener('click', () => {
+  const phase = $('#phase').value;
+  if (!phases[phase]) return;
+  if (phase === eventDemo.phase) {
+    $('#phase-msg').textContent = 'La fase de práctica no cambió; se conserva la versión '+eventDemo.version+'.';
+    return;
+  }
+  const next = {phase, version:eventDemo.version+1, previous:phases[eventDemo.phase], changedAt:new Date().toLocaleString('es-PE')};
+  const saved = store.set('eventDemo', JSON.stringify(next));
+  eventDemo = next;
+  renderEventDemo();
+  $('#phase-msg').textContent = saved ? 'Cambio de práctica guardado solo en este navegador. No se emitió un aviso real.' : 'Cambio de práctica visible solo en esta sesión; no se pudo guardar en el navegador.';
+});
+renderEventDemo();
 for(const [id,cls] of [['large','large-text'],['contrast','high-contrast']]){const e=$('#'+id);e.checked=store.get(id)==='1';document.body.classList.toggle(cls,e.checked);e.addEventListener('change',()=>{document.body.classList.toggle(cls,e.checked);store.set(id,e.checked?'1':'0')})}
 $('#vibrate').addEventListener('click',()=>{let ok=false;try{ok=!!navigator.vibrate&&navigator.vibrate([150,100,150])}catch{}$('#vibrate-msg').textContent=ok?'Prueba solicitada. La percepción física requiere comprobación en el dispositivo.':'Vibración no disponible o no autorizada en este dispositivo. La información textual sigue disponible.'});
 const guide='Guía de práctica: identifica las rutas oficiales del campus, mantén la calma y sigue las indicaciones de las autoridades. No es un paquete institucional aprobado.';$('#save-guide').addEventListener('click',()=>{$('#guide-msg').textContent=store.set('guide',guide)?'Guía textual de ejemplo guardada en este navegador.':'No fue posible guardar la guía en este navegador.'});$('#view-guide').addEventListener('click',()=>{$('#guide-msg').textContent=store.get('guide')||'Aún no hay una guía guardada.'});
