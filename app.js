@@ -46,6 +46,33 @@ let v=1;$('#update-phase').addEventListener('click',()=>{const phase=$('#phase')
 for(const [id,cls] of [['large','large-text'],['contrast','high-contrast']]){const e=$('#'+id);e.checked=store.get(id)==='1';document.body.classList.toggle(cls,e.checked);e.addEventListener('change',()=>{document.body.classList.toggle(cls,e.checked);store.set(id,e.checked?'1':'0')})}
 $('#vibrate').addEventListener('click',()=>{let ok=false;try{ok=!!navigator.vibrate&&navigator.vibrate([150,100,150])}catch{}$('#vibrate-msg').textContent=ok?'Prueba solicitada. La percepción física requiere comprobación en el dispositivo.':'Vibración no disponible o no autorizada en este dispositivo. La información textual sigue disponible.'});
 const guide='Guía de práctica: identifica las rutas oficiales del campus, mantén la calma y sigue las indicaciones de las autoridades. No es un paquete institucional aprobado.';$('#save-guide').addEventListener('click',()=>{$('#guide-msg').textContent=store.set('guide',guide)?'Guía textual de ejemplo guardada en este navegador.':'No fue posible guardar la guía en este navegador.'});$('#view-guide').addEventListener('click',()=>{$('#guide-msg').textContent=store.get('guide')||'Aún no hay una guía guardada.'});
+// La descarga es una guía de ejemplo autocontenida, no un paquete institucional aprobado.
+const downloadGuide = document.createElement('button');
+downloadGuide.type = 'button';
+downloadGuide.className = 'button secondary';
+downloadGuide.textContent = 'Descargar guía de práctica (.txt)';
+$('#view-guide').after(downloadGuide);
+downloadGuide.addEventListener('click', () => {
+  try {
+    const text = 'SEÑASISMO CAMPUS — GUÍA DE PRÁCTICA\n\n'
+      + 'Documento académico de ejemplo. No es un protocolo institucional aprobado y no contiene información en tiempo real.\n\n'
+      + 'Antes: identifica las rutas, puntos de reunión y apoyos de comunicación indicados por tu institución.\n'
+      + 'Durante: sigue las indicaciones oficiales disponibles para tu campus.\n'
+      + 'Después: consulta a las autoridades y solicita apoyo mediante los canales oficiales.\n\n'
+      + 'La página de práctica no envía solicitudes a una brigada ni reemplaza los canales oficiales.\n';
+    const url = URL.createObjectURL(new Blob([text], {type:'text/plain;charset=utf-8'}));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'guia-practica-senasismo.txt';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    $('#guide-msg').textContent = 'Se solicitó la descarga de una guía de ejemplo. Comprueba que el archivo se guardó en tu dispositivo.';
+  } catch {
+    $('#guide-msg').textContent = 'No se pudo preparar la descarga. La guía de ejemplo sigue disponible en esta página.';
+  }
+});
 // La confirmación utiliza exactamente los datos revisados y solo crea un caso por operación.
 let reviewedRequest = null;
 let confirmationInProgress = false;
