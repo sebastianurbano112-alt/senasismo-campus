@@ -139,6 +139,13 @@ $('#edit').addEventListener('click', () => { invalidateReview(); $('#need').focu
 $('#confirm').addEventListener('click', () => {
   if (!reviewedRequest || confirmationInProgress) return;
   confirmationInProgress = true;
+  let activeCase;
+  try { activeCase = JSON.parse(store.get('labCase') || 'null'); } catch { activeCase = null; }
+  if (activeCase && !['cerrado','cancelada'].includes(activeCase.state)) {
+    $('#request-status').textContent = 'Ya existe una práctica activa ('+activeCase.id+'). Revísala en el laboratorio antes de iniciar otra.';
+    confirmationInProgress = false;
+    return;
+  }
   const record = {id:'DEMO-'+Date.now(), ...reviewedRequest, time:new Date().toLocaleString('es-PE')};
   const saved = store.set('request', JSON.stringify(record));
   if (saved) {
@@ -212,16 +219,39 @@ $('#directory-filter').addEventListener('change', renderDirectoryDemo);
 $('#role-preview').addEventListener('change', renderRoleDemo);
 renderDirectoryDemo();
 renderRoleDemo();
+// Seguimiento accesible del caso simulado junto al formulario de la persona usuaria.
+const caseTracking = document.createElement('div');
+caseTracking.innerHTML = '<h4>Seguimiento de práctica</h4><p id="tracking-status" role="status" aria-live="polite"></p><a href="#laboratorio">Ver la coordinación de práctica</a><p class="fine">Los estados y mensajes son ficticios y solo existen en este navegador.</p>';
+$('#request-status').after(caseTracking);
 let exercise=null; try{exercise=JSON.parse(store.get('labCase')||'null')}catch{};
 let draft=null; try{draft=JSON.parse(store.get('labDraft')||'null')}catch{};
 function copyCase(){let saved;try{saved=JSON.parse(store.get('request')||'null')}catch{};if(saved&&(!exercise||exercise.id!==saved.id)){exercise={...saved,state:'pendiente',version:1,owner:'Sin asignar',messages:[],transfer:'Sin derivación'};persistCase()} }
 function persistCase(){store.set('labCase',JSON.stringify(exercise))}
-function renderLab(){copyCase();const box=$('#lab-case'),queue=$('#lab-queue');if(!exercise){box.textContent='No hay solicitudes de práctica guardadas.';queue.textContent='La cola de ejemplo está vacía. Esto no informa sobre una emergencia real.';return}box.textContent='Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · Estado simulado: '+exercise.state+' · Responsable: '+exercise.owner+' · Versión '+exercise.version+'. '+(exercise.messages.at(-1)||'');const visible=$('#lab-filter').value==='todos'||$('#lab-filter').value===exercise.state;queue.textContent=visible?'Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+exercise.state+' · '+exercise.time+' · '+exercise.transfer:'Ningún caso coincide con el filtro. El filtro no elimina datos.'}
-$('#lab-filter').addEventListener('change',renderLab);$('#lab-save').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='Primero guarda una solicitud de prueba.';let z=$('#lab-update').value.trim();if(!z)return $('#lab-feedback').textContent='Escribe una referencia de ejemplo.';exercise.zone=z;exercise.version++;persistCase();renderLab();$('#lab-feedback').textContent='Referencia actualizada en este navegador; no se ha enviado a nadie.'});
-$('#lab-cancel').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='No hay solicitud para cancelar.';if(!confirm('¿Cancelar esta solicitud de práctica local?'))return;exercise.state='cancelada';exercise.version++;persistCase();renderLab();$('#lab-feedback').textContent='Práctica cancelada localmente; no existe acuse de un servicio.'});
-$('#lab-take').addEventListener('click',()=>{if(!exercise||exercise.state!=='pendiente')return $('#lab-brigade').textContent='Se necesita un caso pendiente para practicar la asignación.';exercise.owner='Brigada ficticia';exercise.state='asignado';persistCase();renderLab();$('#lab-brigade').textContent='Asignación solo local. No garantiza exclusividad entre dispositivos.'});
-$('#lab-ack').addEventListener('click',()=>{if(!exercise||exercise.state!=='asignado')return $('#lab-brigade').textContent='Primero asigna un caso de práctica.';exercise.messages.push('Acuse ficticio: estamos revisando el caso.');exercise.state='atencion';persistCase();renderLab();$('#lab-brigade').textContent='Acuse de práctica registrado localmente; no fue enviado.'});
-$('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
-$('#lab-close').addEventListener('click',()=>{let result=$('#lab-result').value;if(!exercise||!['asignado','atencion'].includes(exercise.state)||!result)return $('#lab-brigade').textContent='Selecciona un caso asignado y un resultado.';if(!confirm('¿Cerrar este caso de práctica?'))return;exercise.state='cerrado';exercise.messages.push('Resultado simulado: '+result);persistCase();renderLab();$('#lab-brigade').textContent='Caso de práctica cerrado localmente.'});
+const practiceStates = {pendiente:'Guardado local', asignado:'Asignado en práctica', atencion:'En atención simulada', cerrado:'Cerrado en práctica', cancelada:'Cancelado en práctica'};
+function renderLab() {
+  copyCase();
+  const box=$('#lab-case'), queue=$('#lab-queue'), tracking=$('#tracking-status');
+  if (!exercise) {
+    box.textContent='No hay solicitudes de práctica guardadas.';
+    queue.textContent='La cola de ejemplo está vacía. Esto no informa sobre una emergencia real.';
+    tracking.textContent='No hay una solicitud de práctica guardada.';
+    return;
+  }
+  const status = practiceStates[exercise.state] || 'Estado de práctica no reconocido';
+  const update = exercise.updatedAt ? ' · Último cambio local: '+exercise.updatedAt : '';
+  const lastMessage = exercise.messages?.at(-1) || 'Sin mensajes de práctica.';
+  box.textContent='Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+status+' · Responsable de ejemplo: '+exercise.owner+' · Versión '+exercise.version+update+'. '+lastMessage;
+  tracking.textContent='Caso '+exercise.id+' · '+status+' · Referencia: '+exercise.zone+update+'. '+lastMessage+' No se ha enviado a una brigada real.';
+  const visible=$('#lab-filter').value==='todos'||$('#lab-filter').value===exercise.state;
+  queue.textContent=visible ? 'Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+status+' · '+exercise.time+' · '+exercise.transfer : 'Ningún caso coincide con el filtro. El filtro no elimina datos.';
+}
+function stampCase() { exercise.updatedAt = new Date().toLocaleString('es-PE'); }
+
+$('#lab-filter').addEventListener('change',renderLab);$('#lab-save').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='Primero guarda una solicitud de prueba.';let z=$('#lab-update').value.trim();if(!z)return $('#lab-feedback').textContent='Escribe una referencia de ejemplo.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó; crea otra práctica si necesitas continuar.';exercise.zone=z;exercise.version++;stampCase();persistCase();renderLab();$('#lab-feedback').textContent='Referencia actualizada en este navegador; no se ha enviado a nadie.'});
+$('#lab-cancel').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='No hay solicitud para cancelar.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó.';if(!confirm('¿Cancelar esta solicitud de práctica local?'))return;exercise.state='cancelada';exercise.version++;stampCase();persistCase();renderLab();$('#lab-feedback').textContent='Práctica cancelada localmente; no existe acuse de un servicio.'});
+$('#lab-take').addEventListener('click',()=>{if(!exercise||exercise.state!=='pendiente')return $('#lab-brigade').textContent='Se necesita un caso pendiente para practicar la asignación.';exercise.owner='Brigada ficticia';exercise.state='asignado';stampCase();persistCase();renderLab();$('#lab-brigade').textContent='Asignación solo local. No garantiza exclusividad entre dispositivos.'});
+$('#lab-ack').addEventListener('click',()=>{if(!exercise||exercise.state!=='asignado')return $('#lab-brigade').textContent='Primero asigna un caso de práctica.';exercise.messages.push('Acuse ficticio: estamos revisando el caso.');exercise.state='atencion';stampCase();persistCase();renderLab();$('#lab-brigade').textContent='Acuse de práctica registrado localmente; no fue enviado.'});
+$('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;stampCase();persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
+$('#lab-close').addEventListener('click',()=>{let result=$('#lab-result').value;if(!exercise||!['asignado','atencion'].includes(exercise.state)||!result)return $('#lab-brigade').textContent='Selecciona un caso asignado y un resultado.';if(!confirm('¿Cerrar este caso de práctica?'))return;exercise.state='cerrado';exercise.messages.push('Resultado simulado: '+result);stampCase();persistCase();renderLab();$('#lab-brigade').textContent='Caso de práctica cerrado localmente.'});
 $('#draft-save').addEventListener('click',()=>{let action=$('#draft-action').value.trim();if(!action)return $('#draft-status').textContent='Escribe una instrucción de ejemplo.';draft={phase:$('#draft-phase').value,action,version:(draft?.version||0)+1,state:'borrador'};store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Borrador de prueba v'+draft.version+' guardado; no está aprobado ni publicado.'});$('#draft-review').addEventListener('click',()=>{if(!draft)return $('#draft-status').textContent='Primero crea un borrador de prueba.';draft.state='revision-simulada';store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Revisión registrada como ejercicio; no sustituye una revisión experta ni autoriza una alerta.'});$('#draft-publish').addEventListener('click',()=>{if(!draft||draft.state!=='revision-simulada')return $('#draft-status').textContent='Debes guardar y revisar el borrador de práctica.';draft.state='publicado-solo-en-practica';store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Versión '+draft.version+' mostrada solo en esta práctica: '+draft.action+' No se emitió un aviso real.'});
 $('#support-form').addEventListener('submit',()=>setTimeout(renderLab,50));$('#confirm').addEventListener('click',()=>setTimeout(renderLab,50));$('#clear-request').addEventListener('click',()=>{exercise=null;store.remove('labCase');renderLab()});renderLab();
