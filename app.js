@@ -3,7 +3,26 @@ const $=s=>document.querySelector(s); const store={get(k){try{return localStorag
 const details={antes:'Conoce las zonas seguras, rutas y puntos de reunión indicados por tu campus. Prepara una mochila de emergencia y consulta qué apoyos de comunicación estarán disponibles durante los simulacros.',durante:'Mantén la calma. Aléjate de ventanas y objetos que puedan caer. Sigue el protocolo vigente de tu institución y las indicaciones de los responsables de seguridad.',despues:'Cuando sea seguro y las autoridades lo indiquen, sigue las rutas autorizadas. Mantente atento a información oficial y solicita ayuda por los medios habilitados si la necesitas.'};
 document.querySelectorAll('[data-detail]').forEach(b=>b.addEventListener('click',()=>{const d=$('#detail');d.hidden=false;d.textContent=details[b.dataset.detail];d.focus()}));
 $('#lsp').addEventListener('click',()=>{$('#lsp-status').textContent='El video LSP aprobado aún no está disponible. Consulta la alternativa textual visible.'});
-$('#understood').addEventListener('click',()=>{$('#declaration').textContent='Declaración guardada solo en esta sesión de práctica. No demuestra comprensión ni fue enviada.'});$('#safe').addEventListener('click',()=>{$('#declaration').textContent='Estado de práctica: declaraste estar a salvo. No se notificó a ninguna brigada.'});
+// Las declaraciones son voluntarias y se conservan localmente para el evento de ejemplo.
+function renderDeclaration() {
+  let record;
+  try { record = JSON.parse(store.get('practiceDeclaration') || 'null'); } catch { record = null; }
+  if (!record || record.event !== 'SIM-001') { $('#declaration').textContent = 'Sin declaración de práctica. Esto no significa que la persona esté a salvo.'; return; }
+  const understood = record.understoodAt ? 'Entendí: '+record.understoodAt+'. Esta declaración no demuestra comprensión. ' : '';
+  const safe = record.safeAt ? 'A salvo: '+record.safeAt+'. ' : '';
+  $('#declaration').textContent = 'Evento de práctica '+record.event+'. '+understood+safe+'Guardado solo en este navegador; no se notificó a ninguna brigada.';
+}
+function saveDeclaration(kind) {
+  let record;
+  try { record = JSON.parse(store.get('practiceDeclaration') || 'null'); } catch { record = null; }
+  if (!record || record.event !== 'SIM-001') record = {event:'SIM-001'};
+  record[kind] = new Date().toLocaleString('es-PE');
+  if (!store.set('practiceDeclaration', JSON.stringify(record))) { $('#declaration').textContent = 'No se pudo guardar la declaración en este navegador. No se envió a una brigada.'; return; }
+  renderDeclaration();
+}
+$('#understood').addEventListener('click', () => saveDeclaration('understoodAt'));
+$('#safe').addEventListener('click', () => saveDeclaration('safeAt'));
+renderDeclaration();
 let v=1;$('#update-phase').addEventListener('click',()=>{const phase=$('#phase').value;v++;$('#event-state').textContent='Estado: '+phase;$('#version').textContent='v'+v+' · Datos de práctica';$('#event-title').textContent=phase==='cerrado'?'Simulacro cerrado en Campus Demo':phase==='actualizado'?'Actualización del simulacro':'Simulacro en Campus Demo';$('#event-text').textContent=phase==='cerrado'?'El evento de práctica ha terminado. Una solicitud abierta no se cierra automáticamente.':'Mantén la calma. Aléjate de ventanas y objetos que puedan caer.';$('#phase-msg').textContent='Fase de práctica actualizada. No se ha emitido un aviso real.'});
 for(const [id,cls] of [['large','large-text'],['contrast','high-contrast']]){const e=$('#'+id);e.checked=store.get(id)==='1';document.body.classList.toggle(cls,e.checked);e.addEventListener('change',()=>{document.body.classList.toggle(cls,e.checked);store.set(id,e.checked?'1':'0')})}
 $('#vibrate').addEventListener('click',()=>{let ok=false;try{ok=!!navigator.vibrate&&navigator.vibrate([150,100,150])}catch{}$('#vibrate-msg').textContent=ok?'Prueba solicitada. La percepción física requiere comprobación en el dispositivo.':'Vibración no disponible o no autorizada en este dispositivo. La información textual sigue disponible.'});
