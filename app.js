@@ -144,7 +144,42 @@ lab.innerHTML=`<div class="section-head"><div><p class="eyebrow dark">LABORATORI
 <article class="sim-card"><h3>2. Mesa de brigada de ejemplo</h3><label for="lab-filter">Filtrar el estado local</label><select id="lab-filter"><option value="todos">Todos</option><option value="pendiente">Pendiente</option><option value="asignado">Asignado</option><option value="atencion">En atención</option><option value="cerrado">Cerrado</option></select><div id="lab-queue" role="status"></div><button class="button secondary" id="lab-take">Asignar a brigada ficticia</button><button class="button secondary" id="lab-ack">Registrar acuse simulado</button><label for="lab-destination">Destino de ejemplo</label><select id="lab-destination"><option value="">Selecciona destino</option><option>Equipo de apoyo ficticio</option><option>Seguridad ficticia</option></select><label for="lab-reason">Motivo de derivación</label><input id="lab-reason" maxlength="100" placeholder="Motivo de práctica"><button class="button secondary" id="lab-transfer">Practicar derivación</button><label for="lab-result">Resultado de práctica</label><select id="lab-result"><option value="">Selecciona resultado</option><option>Orientación proporcionada</option><option>Derivado a otro equipo</option><option>Práctica cancelada</option></select><button class="button secondary" id="lab-close">Cerrar caso simulado</button><p id="lab-brigade" role="status"></p></article>
 <article class="sim-card"><h3>3. Revisión de contenido</h3><p>Ensaya el ciclo de borrador, revisión y publicación ficticia.</p><label for="draft-phase">Fase del ejercicio</label><select id="draft-phase"><option>Preparación</option><option>Simulacro</option><option>Cierre</option></select><label for="draft-action">Instrucción de ejemplo</label><textarea id="draft-action" rows="3" maxlength="180" placeholder="Escribe una instrucción de prueba"></textarea><button class="button secondary" id="draft-save">Guardar borrador</button><button class="button secondary" id="draft-review">Registrar revisión simulada</button><button class="button secondary" id="draft-publish">Publicar en el simulador</button><p id="draft-status" role="status"></p></article></div>
 <div class="detail" style="margin-top:1.5rem"><h3>Roles y límites de la práctica</h3><p>Comunidad: consulta y practica una solicitud. Brigada ficticia: ensaya asignación, acuse, derivación y cierre. Equipo de contenidos: crea y revisa un borrador. La selección es libre y no constituye control de acceso.</p><p>Para una operación real se requerirían permisos institucionales, autenticación, almacenamiento compartido, controles de concurrencia, validación lingüística y acuses verificables.</p></div>`;
+// HU24 y HU40: representación visual con datos ficticios, sin conexión institucional.
+const institutionalDemo = document.createElement('div');
+institutionalDemo.className = 'simgrid';
+institutionalDemo.style.marginTop = '1.5rem';
+institutionalDemo.innerHTML = `<article class="sim-card" aria-labelledby="directory-demo-title"><h3 id="directory-demo-title">Directorio de práctica</h3><p><strong>Ejemplo ficticio:</strong> los contactos no son reales y no sirven para solicitar ayuda. Consulta los canales oficiales de tu institución ante una emergencia.</p><label for="directory-filter">Filtrar contacto ficticio</label><select id="directory-filter"><option value="todos">Todos los equipos</option><option value="orientacion">Orientación ficticia</option><option value="accesibilidad">Accesibilidad ficticia</option><option value="brigada">Brigada ficticia</option></select><div id="directory-results" role="status" aria-live="polite"></div></article><article class="sim-card" aria-labelledby="role-demo-title"><h3 id="role-demo-title">Vista de roles de práctica</h3><p><strong>Simulación visual:</strong> elegir un rol no inicia sesión ni concede permisos reales.</p><label for="role-preview">Selecciona un rol ficticio</label><select id="role-preview"><option value="comunidad">Comunidad</option><option value="brigada">Brigada ficticia</option><option value="contenido">Equipo de contenido ficticio</option></select><div id="role-description" role="status" aria-live="polite"></div></article>`;
+lab.append(institutionalDemo);
 document.querySelector('#apoyo').before(lab);
+const demoDirectory = [
+  {type:'orientacion', title:'Orientación ficticia', detail:'Ejemplo de orientación del campus. Sin contacto ni servicio asociado.'},
+  {type:'accesibilidad', title:'Accesibilidad ficticia', detail:'Ejemplo de apoyo para la comunicación. Sin contacto ni servicio asociado.'},
+  {type:'brigada', title:'Brigada ficticia', detail:'Ejemplo de coordinación de práctica. No recibe solicitudes.'}
+];
+function renderDirectoryDemo() {
+  const selected = $('#directory-filter').value;
+  const target = $('#directory-results');
+  target.replaceChildren();
+  demoDirectory.filter(item => selected === 'todos' || item.type === selected).forEach(item => {
+    const entry = document.createElement('div');
+    const title = document.createElement('strong');
+    const description = document.createElement('p');
+    title.textContent = item.title;
+    description.textContent = item.detail;
+    entry.append(title, description);
+    target.append(entry);
+  });
+}
+const roleDescriptions = {
+  comunidad:'Comunidad: consulta la información de práctica y ensaya una solicitud local.',
+  brigada:'Brigada ficticia: explora la mesa de ejemplo y ensaya sus estados sin gestionar casos reales.',
+  contenido:'Equipo de contenido ficticio: ensaya borradores y revisiones sin publicar avisos oficiales.'
+};
+function renderRoleDemo() { $('#role-description').textContent = roleDescriptions[$('#role-preview').value] + ' Esta vista no autentica ni autoriza acciones.'; }
+$('#directory-filter').addEventListener('change', renderDirectoryDemo);
+$('#role-preview').addEventListener('change', renderRoleDemo);
+renderDirectoryDemo();
+renderRoleDemo();
 let exercise=null; try{exercise=JSON.parse(store.get('labCase')||'null')}catch{};
 let draft=null; try{draft=JSON.parse(store.get('labDraft')||'null')}catch{};
 function copyCase(){let saved;try{saved=JSON.parse(store.get('request')||'null')}catch{};if(saved&&(!exercise||exercise.id!==saved.id)){exercise={...saved,state:'pendiente',version:1,owner:'Sin asignar',messages:[],transfer:'Sin derivación'};persistCase()} }
