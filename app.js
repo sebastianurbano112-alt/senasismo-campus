@@ -333,6 +333,34 @@ $('#scope-sync').addEventListener('click', () => {
   renderLab();
 });
 
+// Cola separada y precargada: datos y prioridades didácticos, sin casos reales.
+const priorityDemo = document.createElement('section');
+priorityDemo.setAttribute('aria-labelledby','priority-demo-title');
+priorityDemo.className = 'detail';
+priorityDemo.innerHTML = '<h4 id="priority-demo-title">Ordenar cola ficticia</h4><p>Estos casos y categorías son ejemplos académicos. La prioridad se asignó para el ejercicio; no representa un protocolo aprobado ni un diagnóstico.</p><label for="priority-order">Orden de ejemplo</label><select id="priority-order"><option value="rules">Categoría de ejemplo y antigüedad</option><option value="age">Antigüedad: primero el más antiguo</option></select><label for="priority-zone">Zona de ejemplo</label><select id="priority-zone"><option value="all">Todas las zonas</option><option value="Zona A">Zona A</option><option value="Zona B">Zona B</option></select><label for="priority-state">Estado de ejemplo</label><select id="priority-state"><option value="all">Todos los estados</option><option value="Pendiente">Pendiente</option><option value="En atención">En atención</option></select><button type="button" class="button secondary" id="priority-reset">Restablecer filtros de ejemplo</button><p id="priority-summary" role="status" aria-live="polite"></p><ul id="priority-list"></ul><p class="fine">Los casos incompletos permanecen visibles como pendientes de clasificación, incluso al filtrar, para no perderlos en el ejercicio.</p>';
+$('#lab-queue').after(priorityDemo);
+const sampleQueue = [
+  {id:'EJ-01', need:'Información accesible', zone:'Zona A', state:'Pendiente', age:12, category:2},
+  {id:'EJ-02', need:'Acompañamiento', zone:'Zona B', state:'Pendiente', age:25, category:1},
+  {id:'EJ-03', need:'Orientación para evacuar', zone:'Zona A', state:'En atención', age:8, category:1},
+  {id:'EJ-04', need:'Necesidad por completar', zone:'Zona no indicada', state:'Pendiente de clasificación', age:18, category:null}
+];
+function renderPriorityDemo() {
+  const zone=$('#priority-zone').value, state=$('#priority-state').value, order=$('#priority-order').value;
+  const rows=sampleQueue.filter(item => item.category === null || ((zone === 'all' || item.zone === zone) && (state === 'all' || item.state === state)));
+  rows.sort((a,b) => order === 'age' ? b.age-a.age : ((a.category ?? 99)-(b.category ?? 99) || b.age-a.age));
+  $('#priority-summary').textContent = 'Orden: '+(order === 'age' ? 'antigüedad' : 'categoría ficticia y antigüedad')+'. Zona: '+(zone === 'all' ? 'todas' : zone)+'. Estado: '+(state === 'all' ? 'todos' : state)+'. '+rows.length+' casos de ejemplo visibles.';
+  const list=$('#priority-list'); list.replaceChildren();
+  rows.forEach(item => {
+    const li=document.createElement('li');
+    li.textContent=item.id+' · '+item.need+' · '+item.zone+' · '+item.state+' · '+item.age+' min de ejemplo · '+(item.category === null ? 'Pendiente de clasificación' : 'Categoría ficticia '+item.category);
+    list.append(li);
+  });
+}
+for (const id of ['priority-order','priority-zone','priority-state']) $('#'+id).addEventListener('change',renderPriorityDemo);
+$('#priority-reset').addEventListener('click',() => { $('#priority-order').value='rules'; $('#priority-zone').value='all'; $('#priority-state').value='all'; renderPriorityDemo(); });
+renderPriorityDemo();
+
 // Plantillas didácticas: nunca se presentan como orientación aprobada o enviada.
 const messageDemo = document.createElement('div');
 messageDemo.innerHTML = '<h4>Mensaje estructurado de práctica</h4><p>Elige una plantilla ficticia para ensayar la revisión. No se envía a ninguna persona.</p><label for="practice-message">Plantilla de ejemplo</label><select id="practice-message"><option value="">Selecciona una plantilla</option><option value="review">Estamos revisando tu solicitud de práctica</option><option value="update">Consulta el seguimiento de práctica</option><option value="closing">El simulacro de práctica terminó</option><option value="unapproved">Instrucción sin revisión (ejemplo bloqueado)</option></select><button class="button secondary" id="practice-message-send">Registrar mensaje de práctica</button><p id="practice-message-status" role="status"></p>';
