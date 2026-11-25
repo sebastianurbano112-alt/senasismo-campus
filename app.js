@@ -125,6 +125,22 @@ const locationNote = document.createElement('p');
 locationNote.className = 'fine';
 locationNote.textContent = 'Indica la zona y la referencia manualmente. No se obtiene ni se rastrea tu ubicación automática.';
 areaInput.after(locationNote);
+const locationDemo = document.createElement('div');
+locationDemo.innerHTML = '<label class="check"><input type="checkbox" id="location-consent-demo"> Simular consentimiento para ubicación de ejemplo</label><button class="button secondary" type="button" id="location-demo">Simular ubicación</button><p class="fine" id="location-demo-status" role="status">La ubicación automática es ficticia. Puedes usar la zona manual sin conceder permisos.</p>';
+locationNote.after(locationDemo);
+let sampleLocation = null;
+$('#location-demo').addEventListener('click', () => {
+  if (!$('#location-consent-demo').checked) {
+    $('#location-demo-status').textContent = 'Activa el consentimiento de práctica o continúa con una zona manual. No se solicitó acceso al dispositivo.'; return;
+  }
+  sampleLocation = {area:'Zona A', precision:'aproximada, ejemplo', time:new Date().toLocaleString('es-PE'), capturedAt:Date.now()};
+  $('#practice-area').value = sampleLocation.area;
+  $('#location-demo-status').textContent = 'Ubicación ficticia: '+sampleLocation.area+' · Precisión '+sampleLocation.precision+' · Hora '+sampleLocation.time+'. No se consultó el GPS.';
+  invalidateReview();
+});
+$('#location-consent-demo').addEventListener('change', () => {
+  if (!$('#location-consent-demo').checked) { sampleLocation = null; $('#location-demo-status').textContent = 'Consentimiento de práctica retirado. No hay seguimiento de ubicación.'; invalidateReview(); }
+});
 function invalidateReview() {
   reviewedRequest = null;
   $('#review').hidden = true;
@@ -149,14 +165,22 @@ $('#support-form').addEventListener('submit', e => {
     return;
   }
   $('#form-error').textContent = '';
-  reviewedRequest = {need, area, zone, note, event:'SIM-001', eventPhase:phases[eventDemo.phase]};
-  $('#review-text').textContent = 'Evento de práctica: '+reviewedRequest.event+' ('+reviewedRequest.eventPhase+'). Necesidad: '+need+'. Zona: '+area+'. Referencia: '+zone+'. Nota: '+(note||'Sin nota')+'. Estos datos permanecen en este navegador.';
+  const selectedLocation = sampleLocation && sampleLocation.area === area && $('#location-consent-demo').checked ? sampleLocation : null;
+  if (selectedLocation && Date.now() - selectedLocation.capturedAt > 300000) {
+    $('#form-error').textContent = 'La ubicación de ejemplo tiene más de cinco minutos. Simúlala de nuevo o retira el consentimiento y usa la zona manual.'; return;
+  }
+  reviewedRequest = {need, area, zone, note, event:'SIM-001', eventPhase:phases[eventDemo.phase], locationDemo:selectedLocation};
+  $('#review-text').textContent = 'Evento de práctica: '+reviewedRequest.event+' ('+reviewedRequest.eventPhase+'). Necesidad: '+need+'. Zona: '+area+'. Referencia: '+zone+'. Nota: '+(note||'Sin nota')+'. '+(selectedLocation ? 'Ubicación ficticia confirmada: '+selectedLocation.precision+' · '+selectedLocation.time+'. ' : 'Ubicación manual. ')+'Estos datos permanecen en este navegador.';
   $('#review').hidden = false;
   $('#confirm').focus();
 });
 $('#edit').addEventListener('click', () => { invalidateReview(); $('#need').focus(); });
 $('#confirm').addEventListener('click', () => {
   if (!reviewedRequest || confirmationInProgress) return;
+  if (reviewedRequest.locationDemo && Date.now() - reviewedRequest.locationDemo.capturedAt > 300000) {
+    invalidateReview();
+    $('#request-status').textContent = 'La ubicación ficticia quedó antigua. Simúlala de nuevo o usa una zona manual y vuelve a revisar.'; return;
+  }
   if (reviewedRequest.eventPhase !== phases[eventDemo.phase]) {
     invalidateReview();
     $('#request-status').textContent = 'La fase del simulacro cambió. Revisa la solicitud nuevamente antes de guardarla.';
@@ -204,7 +228,7 @@ lab.className='section pale';lab.id='laboratorio';lab.setAttribute('aria-labelle
 lab.innerHTML=`<div class="section-head"><div><p class="eyebrow dark">LABORATORIO ACADÉMICO</p><h2 id="lab-title">Practica la coordinación.</h2></div><p>Datos de ejemplo en este dispositivo. Ninguna acción comunica con una brigada ni modifica protocolos reales.</p></div>
 <div class="notice"><strong>Simulación:</strong> los roles y aprobaciones son didácticos. No hay autenticación ni un servicio de emergencia conectado.</div>
 <div class="simgrid" style="margin-top:1.5rem"><article class="sim-card"><h3>1. Solicitud de práctica</h3><p>Usa el formulario de apoyo de la página para crear un caso ficticio. Aquí puedes revisarlo, actualizarlo o cancelar la práctica.</p><div id="lab-case" role="status"></div><label for="lab-update">Nueva referencia de ejemplo</label><input id="lab-update" maxlength="80" placeholder="Ejemplo: zona B"><button class="button secondary" id="lab-save">Actualizar referencia</button> <button class="button secondary" id="lab-cancel">Cancelar práctica</button><p id="lab-feedback" role="status"></p></article>
-<article class="sim-card"><h3>2. Mesa de brigada de ejemplo</h3><label for="lab-filter">Filtrar el estado local</label><select id="lab-filter"><option value="todos">Todos</option><option value="pendiente">Pendiente</option><option value="asignado">Asignado</option><option value="atencion">En atención</option><option value="cerrado">Cerrado</option></select><div id="lab-queue" role="status"></div><button class="button secondary" id="lab-take">Asignar a brigada ficticia</button><button class="button secondary" id="lab-ack">Registrar acuse simulado</button><label for="lab-destination">Destino de ejemplo</label><select id="lab-destination"><option value="">Selecciona destino</option><option>Equipo de apoyo ficticio</option><option>Seguridad ficticia</option></select><label for="lab-reason">Motivo de derivación</label><input id="lab-reason" maxlength="100" placeholder="Motivo de práctica"><button class="button secondary" id="lab-transfer">Practicar derivación</button><button class="button secondary" id="lab-accept-transfer">Simular aceptación de derivación</button><label for="lab-result">Resultado de práctica</label><select id="lab-result"><option value="">Selecciona resultado</option><option>Orientación proporcionada</option><option>Derivado a otro equipo</option><option>Práctica cancelada</option></select><button class="button secondary" id="lab-close">Cerrar caso simulado</button><p id="lab-brigade" role="status"></p></article>
+<article class="sim-card"><h3>2. Mesa de brigada de ejemplo</h3><label for="lab-filter">Filtrar el estado local</label><select id="lab-filter"><option value="todos">Todos</option><option value="pendiente">Pendiente</option><option value="recibido">Recibido en práctica</option><option value="asignado">Asignado</option><option value="atencion">En atención</option><option value="cerrado">Cerrado</option></select><div id="lab-queue" role="status"></div><button class="button secondary" id="lab-take">Asignar a brigada ficticia</button><button class="button secondary" id="lab-ack">Registrar acuse simulado</button><label for="lab-destination">Destino de ejemplo</label><select id="lab-destination"><option value="">Selecciona destino</option><option>Equipo de apoyo ficticio</option><option>Seguridad ficticia</option></select><label for="lab-reason">Motivo de derivación</label><input id="lab-reason" maxlength="100" placeholder="Motivo de práctica"><button class="button secondary" id="lab-transfer">Practicar derivación</button><button class="button secondary" id="lab-accept-transfer">Simular aceptación de derivación</button><label for="lab-result">Resultado de práctica</label><select id="lab-result"><option value="">Selecciona resultado</option><option>Orientación proporcionada</option><option>Derivado a otro equipo</option><option>Práctica cancelada</option></select><button class="button secondary" id="lab-close">Cerrar caso simulado</button><p id="lab-brigade" role="status"></p></article>
 <article class="sim-card"><h3>3. Revisión de contenido</h3><p>Ensaya el ciclo de borrador, revisión y publicación ficticia.</p><label for="draft-phase">Fase del ejercicio</label><select id="draft-phase"><option>Preparación</option><option>Simulacro</option><option>Cierre</option></select><label for="draft-action">Instrucción de ejemplo</label><textarea id="draft-action" rows="3" maxlength="180" placeholder="Escribe una instrucción de prueba"></textarea><button class="button secondary" id="draft-save">Guardar borrador</button><button class="button secondary" id="draft-review">Registrar revisión simulada</button><button class="button secondary" id="draft-publish">Publicar en el simulador</button><p id="draft-status" role="status"></p></article></div>
 <div class="detail" style="margin-top:1.5rem"><h3>Roles y límites de la práctica</h3><p>Comunidad: consulta y practica una solicitud. Brigada ficticia: ensaya asignación, acuse, derivación y cierre. Equipo de contenidos: crea y revisa un borrador. La selección es libre y no constituye control de acceso.</p><p>Para una operación real se requerirían permisos institucionales, autenticación, almacenamiento compartido, controles de concurrencia, validación lingüística y acuses verificables.</p></div>`;
 // HU24 y HU40: representación visual con datos ficticios, sin conexión institucional.
@@ -251,7 +275,7 @@ let exercise=null; try{exercise=JSON.parse(store.get('labCase')||'null')}catch{}
 let draft=null; try{draft=JSON.parse(store.get('labDraft')||'null')}catch{};
 function copyCase(){let saved;try{saved=JSON.parse(store.get('request')||'null')}catch{};if(saved&&(!exercise||exercise.id!==saved.id)){exercise={...saved,state:'pendiente',version:1,owner:'Sin asignar',messages:[],transfer:'Sin derivación'};persistCase()} }
 function persistCase(){store.set('labCase',JSON.stringify(exercise))}
-const practiceStates = {pendiente:'Guardado local', asignado:'Asignado en práctica', atencion:'En atención simulada', cerrado:'Cerrado en práctica', cancelada:'Cancelado en práctica'};
+const practiceStates = {pendiente:'Guardado local · Pendiente de confirmar', recibido:'Recibido en práctica', asignado:'Asignado en práctica', atencion:'En atención simulada', cerrado:'Cerrado en práctica', cancelada:'Cancelado en práctica', cancelacion_pendiente:'Cancelación de práctica pendiente'};
 function renderLab() {
   copyCase();
   const box=$('#lab-case'), queue=$('#lab-queue'), tracking=$('#tracking-status');
@@ -274,6 +298,22 @@ function renderLab() {
 }
 function stampCase(action) { exercise.updatedAt = new Date().toLocaleString('es-PE'); if (!Array.isArray(exercise.history)) exercise.history = []; exercise.history.push({time:exercise.updatedAt,action}); }
 
+const receiptDemo = document.createElement('div');
+receiptDemo.innerHTML = '<h4>Recepción y conexión de práctica</h4><p>Los controles siguientes simulan respuestas en este navegador; no existe un servicio conectado.</p><label class="check"><input type="checkbox" id="practice-connection" checked> Simular conexión disponible</label><button class="button secondary" type="button" id="practice-receipt">Simular acuse de recepción</button><button class="button secondary" type="button" id="practice-cancel-receipt">Simular confirmación de cancelación</button><p id="practice-receipt-status" role="status"></p>';
+$('#lab-case').after(receiptDemo);
+$('#practice-receipt').addEventListener('click', () => {
+  if (!exercise || exercise.state !== 'pendiente') { $('#practice-receipt-status').textContent = 'Primero guarda un caso pendiente de práctica.'; return; }
+  if (!$('#practice-connection').checked) { $('#practice-receipt-status').textContent = 'Sin conexión simulada: el caso permanece pendiente. No se promete recepción ni atención.'; return; }
+  exercise.state = 'recibido'; stampCase('Acuse de recepción ficticio'); persistCase(); renderLab();
+  $('#practice-receipt-status').textContent = 'Recepción simulada con identificador y hora. Ningún servicio real recibió el caso.';
+});
+$('#practice-cancel-receipt').addEventListener('click', () => {
+  if (!exercise || exercise.state !== 'cancelacion_pendiente') { $('#practice-receipt-status').textContent = 'No hay cancelación pendiente de práctica.'; return; }
+  if (!$('#practice-connection').checked) { $('#practice-receipt-status').textContent = 'La cancelación sigue pendiente porque la conexión simulada está desactivada.'; return; }
+  exercise.state = 'cancelada'; exercise.version++; stampCase('Acuse ficticio de cancelación'); persistCase(); renderLab();
+  $('#practice-receipt-status').textContent = 'Cancelación confirmada solo en la práctica. No se contactó a ningún servicio.';
+});
+
 // Plantillas didácticas: nunca se presentan como orientación aprobada o enviada.
 const messageDemo = document.createElement('div');
 messageDemo.innerHTML = '<h4>Mensaje estructurado de práctica</h4><p>Elige una plantilla ficticia para ensayar la revisión. No se envía a ninguna persona.</p><label for="practice-message">Plantilla de ejemplo</label><select id="practice-message"><option value="">Selecciona una plantilla</option><option value="review">Estamos revisando tu solicitud de práctica</option><option value="update">Consulta el seguimiento de práctica</option><option value="unapproved">Instrucción sin revisión (ejemplo bloqueado)</option></select><button class="button secondary" id="practice-message-send">Registrar mensaje de práctica</button><p id="practice-message-status" role="status"></p>';
@@ -294,8 +334,8 @@ $('#practice-message-send').addEventListener('click', () => {
   $('#practice-message-status').textContent = 'Mensaje registrado solo en este navegador. No fue enviado ni aprobado institucionalmente.';
 });
 
-$('#lab-filter').addEventListener('change',renderLab);$('#lab-save').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='Primero guarda una solicitud de prueba.';let z=$('#lab-update').value.trim();if(!z)return $('#lab-feedback').textContent='Escribe una referencia de ejemplo.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó; crea otra práctica si necesitas continuar.';exercise.zone=z;exercise.version++;stampCase('Referencia actualizada en práctica');persistCase();renderLab();$('#lab-feedback').textContent='Referencia actualizada en este navegador; no se ha enviado a nadie.'});
-$('#lab-cancel').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='No hay solicitud para cancelar.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó.';if(!confirm('¿Cancelar esta solicitud de práctica local?'))return;exercise.state='cancelada';exercise.version++;stampCase('Solicitud cancelada en práctica');persistCase();renderLab();$('#lab-feedback').textContent='Práctica cancelada localmente; no existe acuse de un servicio.'});
+$('#lab-filter').addEventListener('change',renderLab);$('#lab-save').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='Primero guarda una solicitud de prueba.';let z=$('#lab-update').value.trim();if(!z)return $('#lab-feedback').textContent='Escribe una referencia de ejemplo.';if(['cerrado','cancelada','cancelacion_pendiente'].includes(exercise.state))return $('#lab-feedback').textContent='El caso terminó o tiene una cancelación pendiente; revisa su estado antes de actualizarlo.';exercise.zone=z;exercise.version++;stampCase('Referencia actualizada en práctica');persistCase();renderLab();$('#lab-feedback').textContent='Referencia actualizada en este navegador; no se ha enviado a nadie.'});
+$('#lab-cancel').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='No hay solicitud para cancelar.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó.';if(exercise.state==='cancelacion_pendiente')return $('#lab-feedback').textContent='La cancelación ya está pendiente de confirmación de práctica.';if(!confirm('¿Solicitar la cancelación de esta práctica local?'))return;exercise.state='cancelacion_pendiente';exercise.version++;stampCase('Cancelación ficticia pendiente');persistCase();renderLab();$('#lab-feedback').textContent='Cancelación pendiente de acuse simulado; no se ha contactado a un servicio.'});
 $('#lab-take').addEventListener('click',()=>{if(!exercise||exercise.state!=='pendiente')return $('#lab-brigade').textContent='Se necesita un caso pendiente para practicar la asignación.';exercise.owner='Brigada ficticia';exercise.state='asignado';stampCase('Asignación ficticia');persistCase();renderLab();$('#lab-brigade').textContent='Asignación solo local. No garantiza exclusividad entre dispositivos.'});
 $('#lab-ack').addEventListener('click',()=>{if(!exercise||exercise.state!=='asignado')return $('#lab-brigade').textContent='Primero asigna un caso de práctica.';exercise.messages.push('Acuse ficticio: estamos revisando el caso.');exercise.state='atencion';stampCase('Acuse ficticio registrado');persistCase();renderLab();$('#lab-brigade').textContent='Acuse de práctica registrado localmente; no fue enviado.'});
 $('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;exercise.transferTarget=target;stampCase('Derivación ficticia pendiente');persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
