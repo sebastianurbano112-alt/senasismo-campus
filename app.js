@@ -194,7 +194,7 @@ $('#confirm').addEventListener('click', () => {
     confirmationInProgress = false;
     return;
   }
-  const record = {id:'DEMO-'+Date.now(), ...reviewedRequest, time:new Date().toLocaleString('es-PE')};
+  const record = {id:'DEMO-'+Date.now(), ...reviewedRequest, time:new Date().toLocaleString('es-PE'), createdAt:Date.now()};
   const saved = store.set('request', JSON.stringify(record));
   if (saved) {
     // La nueva necesidad retira la declaración de seguridad solo cuando puede guardarse.
@@ -273,6 +273,10 @@ renderRoleDemo();
 const caseTracking = document.createElement('div');
 caseTracking.innerHTML = '<h4>Seguimiento de práctica</h4><p id="tracking-status" role="status" aria-live="polite"></p><p id="tracking-history"></p><a href="#laboratorio">Ver la coordinación de práctica</a><p><a href="#directory-demo-title">Ver alternativas de ejemplo (no son contactos reales)</a></p><p class="fine">Los estados y mensajes son ficticios y solo existen en este navegador.</p>';
 $('#request-status').after(caseTracking);
+// Panel de alcance exclusivamente visual: no implementa autorización ni sincronización reales.
+const scopeDemo = document.createElement('div');
+scopeDemo.innerHTML = '<p class="fine"><strong>Ámbito de práctica:</strong> las restricciones y la conexión son ficticias. No hay inicio de sesión, permisos reales ni sincronización entre dispositivos.</p><label class="check"><input type="checkbox" id="scope-authorized" checked> Simular autorización para Campus Demo</label><label for="scope-campus">Campus de ejemplo</label><select id="scope-campus"><option>Campus Demo</option><option>Otro campus ficticio</option></select><label for="scope-event">Evento de ejemplo</label><select id="scope-event"><option>SIM-001</option><option>SIM-002</option></select><label for="scope-zone">Zona asignada de ejemplo</label><select id="scope-zone"><option>Todas las zonas</option><option>Zona A</option><option>Zona B</option><option>Otra zona</option></select><button type="button" class="button secondary" id="scope-sync">Simular sincronización</button><p id="scope-status" role="status"></p>';
+$('#lab-filter').before(scopeDemo);
 let exercise=null; try{exercise=JSON.parse(store.get('labCase')||'null')}catch{};
 let draft=null; try{draft=JSON.parse(store.get('labDraft')||'null')}catch{};
 function copyCase(){let saved;try{saved=JSON.parse(store.get('request')||'null')}catch{};if(saved&&(!exercise||exercise.id!==saved.id)){exercise={...saved,state:'pendiente',version:1,owner:'Sin asignar',messages:[],transfer:'Sin derivación'};persistCase()} }
@@ -281,6 +285,9 @@ const practiceStates = {pendiente:'Guardado local · Pendiente de confirmar', re
 function renderLab() {
   copyCase();
   const box=$('#lab-case'), queue=$('#lab-queue'), tracking=$('#tracking-status');
+  const simulatedOnline = $('#practice-connection').checked;
+  const lastSync = store.get('panelPracticeSync');
+  $('#scope-status').textContent = 'Conexión simulada: '+(simulatedOnline ? 'disponible' : 'sin conexión')+'. Última sincronización de práctica: '+(lastSync || 'ninguna')+'. No representa conexión ni sincronización real.';
   if (!exercise) {
     box.textContent='No hay solicitudes de práctica guardadas.';
     queue.textContent='La cola de ejemplo está vacía. Esto no informa sobre una emergencia real.';
@@ -295,8 +302,11 @@ function renderLab() {
   tracking.textContent='Caso '+exercise.id+' · '+status+' · Evento de práctica: '+(exercise.event||'SIM-001')+' · Zona: '+(exercise.area||'No especificada')+' · Referencia: '+exercise.zone+' · Responsable ficticio: '+exercise.owner+update+'. '+lastMessage+' '+exercise.transfer+'. No se ha enviado a una brigada real. Para apoyo real, consulta los canales oficiales de tu institución.';
   const history = Array.isArray(exercise.history) ? exercise.history : [];
   $('#tracking-history').textContent = history.length ? 'Historial local de práctica: '+history.map(entry=>entry.time+' — '+entry.action).join(' | ') : 'Sin historial detallado para este caso guardado anteriormente.';
+  const allowed = $('#scope-authorized').checked && $('#scope-campus').value === 'Campus Demo' && $('#scope-event').value === (exercise.event || 'SIM-001') && ($('#scope-zone').value === 'Todas las zonas' || $('#scope-zone').value === exercise.area);
+  if (!allowed) { queue.textContent='Acceso de práctica denegado para este ámbito ficticio. No se muestran datos del caso en esta mesa. Esto no es un control de acceso real.'; return; }
   const visible=$('#lab-filter').value==='todos'||$('#lab-filter').value===exercise.state;
-  queue.textContent=visible ? 'Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+status+' · '+exercise.time+' · '+exercise.transfer : 'Ningún caso coincide con el filtro. El filtro no elimina datos.';
+  const age = Number.isFinite(exercise.createdAt) ? Math.max(0,Math.floor((Date.now()-exercise.createdAt)/60000))+' min de práctica' : 'Antigüedad no disponible';
+  queue.textContent=visible ? 'Caso '+exercise.id+' · Necesidad: '+exercise.need+' · Zona: '+(exercise.area||'No indicada')+' · Referencia: '+exercise.zone+' · Antigüedad: '+age+' · Estado: '+status+' · Registrado: '+exercise.time+' · '+exercise.transfer : 'Ningún caso coincide con el filtro. Esto no demuestra ausencia de necesidad.';
 }
 function stampCase(action) { exercise.updatedAt = new Date().toLocaleString('es-PE'); if (!Array.isArray(exercise.history)) exercise.history = []; exercise.history.push({time:exercise.updatedAt,action}); }
 
@@ -314,6 +324,13 @@ $('#practice-cancel-receipt').addEventListener('click', () => {
   if (!$('#practice-connection').checked) { $('#practice-receipt-status').textContent = 'La cancelación sigue pendiente porque la conexión simulada está desactivada.'; return; }
   exercise.state = 'cancelada'; exercise.version++; stampCase('Acuse ficticio de cancelación'); persistCase(); renderLab();
   $('#practice-receipt-status').textContent = 'Cancelación confirmada solo en la práctica. No se contactó a ningún servicio.';
+});
+for (const id of ['scope-authorized','scope-campus','scope-event','scope-zone','practice-connection']) $('#'+id).addEventListener('change', renderLab);
+$('#scope-sync').addEventListener('click', () => {
+  if (!$('#practice-connection').checked) { $('#scope-status').textContent = 'Sin conexión simulada: no se actualizó la sincronización de práctica.'; return; }
+  const when = new Date().toLocaleString('es-PE');
+  if (!store.set('panelPracticeSync',when)) { $('#scope-status').textContent = 'No se pudo guardar la sincronización de práctica en este navegador.'; return; }
+  renderLab();
 });
 
 // Plantillas didácticas: nunca se presentan como orientación aprobada o enviada.
