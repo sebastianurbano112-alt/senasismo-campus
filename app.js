@@ -342,7 +342,28 @@ $('#practice-message-send').addEventListener('click', () => {
 });
 
 $('#lab-filter').addEventListener('change',renderLab);$('#lab-save').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='Primero guarda una solicitud de prueba.';let z=$('#lab-update').value.trim();if(!z)return $('#lab-feedback').textContent='Escribe una referencia de ejemplo.';if(['cerrado','cancelada','cancelacion_pendiente'].includes(exercise.state))return $('#lab-feedback').textContent='El caso terminó o tiene una cancelación pendiente; revisa su estado antes de actualizarlo.';exercise.zone=z;exercise.version++;stampCase('Referencia actualizada en práctica');persistCase();renderLab();$('#lab-feedback').textContent='Referencia actualizada en este navegador; no se ha enviado a nadie.'});
-$('#lab-cancel').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='No hay solicitud para cancelar.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó.';if(exercise.state==='cancelacion_pendiente')return $('#lab-feedback').textContent='La cancelación ya está pendiente de confirmación de práctica.';if(!confirm('¿Solicitar la cancelación de esta práctica local?'))return;exercise.state='cancelacion_pendiente';exercise.version++;stampCase('Cancelación ficticia pendiente');persistCase();renderLab();$('#lab-feedback').textContent='Cancelación pendiente de acuse simulado; no se ha contactado a un servicio.'});
+const cancelReview = document.createElement('div');
+cancelReview.hidden = true;
+cancelReview.innerHTML = '<p id="cancel-review-text"></p><button type="button" class="button primary" id="confirm-cancel-practice">Confirmar solicitud de cancelación</button> <button type="button" class="button secondary" id="keep-practice">Conservar solicitud</button>';
+$('#lab-cancel').after(cancelReview);
+let pendingCancel = null;
+function dismissCancel() { pendingCancel = null; cancelReview.hidden = true; }
+$('#lab-cancel').addEventListener('click', () => {
+  if (!exercise) { dismissCancel(); $('#lab-feedback').textContent='No hay solicitud para cancelar.'; return; }
+  if (['cerrado','cancelada','cancelacion_pendiente'].includes(exercise.state)) { dismissCancel(); $('#lab-feedback').textContent='El caso ya terminó o tiene una cancelación pendiente.'; return; }
+  pendingCancel = {id:exercise.id, version:exercise.version, state:exercise.state};
+  $('#cancel-review-text').textContent = '¿Solicitar la cancelación de la práctica '+exercise.id+'? La confirmación será simulada y no se notificará a una brigada.';
+  cancelReview.hidden = false; $('#confirm-cancel-practice').focus();
+});
+$('#keep-practice').addEventListener('click', () => { dismissCancel(); $('#lab-feedback').textContent='La solicitud conserva su estado de práctica.'; $('#lab-cancel').focus(); });
+$('#confirm-cancel-practice').addEventListener('click', () => {
+  if (!pendingCancel || !exercise || exercise.id !== pendingCancel.id || exercise.version !== pendingCancel.version || exercise.state !== pendingCancel.state) {
+    dismissCancel(); $('#lab-feedback').textContent='El caso cambió. Revisa la cancelación nuevamente.'; return;
+  }
+  exercise.state='cancelacion_pendiente'; exercise.version++; stampCase('Cancelación ficticia pendiente');
+  persistCase(); dismissCancel(); renderLab();
+  $('#lab-feedback').textContent='Cancelación pendiente de acuse simulado; no se ha contactado a un servicio.';
+});
 $('#lab-take').addEventListener('click',()=>{if(!exercise||exercise.state!=='recibido')return $('#lab-brigade').textContent='Primero simula el acuse de recepción del caso antes de asignarlo.';exercise.owner='Brigada ficticia';exercise.state='asignado';stampCase('Asignación ficticia');persistCase();renderLab();$('#lab-brigade').textContent='Asignación solo local. No garantiza exclusividad entre dispositivos.'});
 $('#lab-ack').addEventListener('click',()=>{if(!exercise||exercise.state!=='asignado')return $('#lab-brigade').textContent='Primero asigna un caso de práctica.';exercise.messages.push('Acuse ficticio: estamos revisando el caso.');exercise.state='atencion';stampCase('Acuse ficticio registrado');persistCase();renderLab();$('#lab-brigade').textContent='Acuse de práctica registrado localmente; no fue enviado.'});
 $('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;exercise.transferTarget=target;stampCase('Derivación ficticia pendiente');persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
