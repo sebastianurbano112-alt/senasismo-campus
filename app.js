@@ -299,7 +299,8 @@ function renderLab() {
   const update = exercise.updatedAt ? ' · Último cambio local: '+exercise.updatedAt : '';
   const lastMessage = exercise.messages?.at(-1) || 'Sin mensajes de práctica.';
   box.textContent='Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+status+' · Responsable de ejemplo: '+exercise.owner+' · Versión '+exercise.version+update+'. '+lastMessage;
-  tracking.textContent='Caso '+exercise.id+' · '+status+' · Evento de práctica: '+(exercise.event||'SIM-001')+' · Zona: '+(exercise.area||'No especificada')+' · Referencia: '+exercise.zone+' · Responsable ficticio: '+exercise.owner+update+'. '+lastMessage+' '+exercise.transfer+'. No se ha enviado a una brigada real. Para apoyo real, consulta los canales oficiales de tu institución.';
+  const pendingAck = exercise.ackPending ? ' Acuse de atención ficticio pendiente de entrega simulada; no hay recepción confirmada.' : '';
+  tracking.textContent='Caso '+exercise.id+' · '+status+' · Evento de práctica: '+(exercise.event||'SIM-001')+' · Zona: '+(exercise.area||'No especificada')+' · Referencia: '+exercise.zone+' · Responsable ficticio: '+exercise.owner+update+'. '+lastMessage+pendingAck+' '+exercise.transfer+'. No se ha enviado a una brigada real. Para apoyo real, consulta los canales oficiales de tu institución.';
   const history = Array.isArray(exercise.history) ? exercise.history : [];
   $('#tracking-history').textContent = history.length ? 'Historial local de práctica: '+history.map(entry=>entry.time+' — '+entry.action).join(' | ') : 'Sin historial detallado para este caso guardado anteriormente.';
   const allowed = $('#scope-authorized').checked && $('#scope-campus').value === 'Campus Demo' && $('#scope-event').value === (exercise.event || 'SIM-001') && ($('#scope-zone').value === 'Todas las zonas' || $('#scope-zone').value === exercise.area);
@@ -428,7 +429,27 @@ function simulateTake(owner) {
 }
 $('#lab-take').addEventListener('click', () => simulateTake('Brigada ficticia'));
 otherTake.addEventListener('click', () => simulateTake('Otra brigada ficticia'));
-$('#lab-ack').addEventListener('click',()=>{if(!exercise||exercise.state!=='asignado')return $('#lab-brigade').textContent='Primero asigna un caso de práctica.';exercise.messages.push('Acuse ficticio: estamos revisando el caso.');exercise.state='atencion';stampCase('Acuse ficticio registrado');persistCase();renderLab();$('#lab-brigade').textContent='Acuse de práctica registrado localmente; no fue enviado.'});
+const deliverAck = document.createElement('button');
+deliverAck.type='button'; deliverAck.className='button secondary';
+deliverAck.textContent='Simular entrega del acuse de atención';
+$('#lab-ack').after(deliverAck);
+$('#lab-ack').addEventListener('click', () => {
+  if (!exercise || exercise.state !== 'asignado') { $('#lab-brigade').textContent='Primero asigna un caso de práctica.'; return; }
+  if (exercise.ackPending) { $('#lab-brigade').textContent='Ya hay un acuse ficticio pendiente para este caso.'; return; }
+  exercise.ackPending = {caseId:exercise.id, owner:exercise.owner};
+  stampCase('Acuse de atención ficticio pendiente'); persistCase(); renderLab();
+  $('#lab-brigade').textContent='Acuse ficticio preparado para '+exercise.id+'. Permanece pendiente hasta simular su entrega; no se ha enviado a nadie.';
+});
+deliverAck.addEventListener('click', () => {
+  if (!exercise || !exercise.ackPending || exercise.state !== 'asignado') { $('#lab-brigade').textContent='Primero prepara un acuse para un caso asignado.'; return; }
+  if (!$('#practice-connection').checked) { $('#lab-brigade').textContent='Sin conexión simulada: el acuse ficticio permanece pendiente y no se afirma recepción.'; return; }
+  if (exercise.ackPending.caseId !== exercise.id || exercise.ackPending.owner !== exercise.owner) { $('#lab-brigade').textContent='El caso o responsable cambió; el acuse ficticio no se ha entregado.'; return; }
+  const owner=exercise.owner; delete exercise.ackPending; exercise.state='atencion';
+  stampCase('Entrega simulada de acuse de atención por '+owner);
+  exercise.messages.push('Acuse de atención simulado de '+owner+' ('+exercise.updatedAt+'): estamos revisando el caso.');
+  persistCase(); renderLab();
+  $('#lab-brigade').textContent='Entrega del acuse simulada solo en este navegador. No se ha contactado a una brigada ni prometido un tiempo de llegada.';
+});
 $('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;exercise.transferTarget=target;stampCase('Derivación ficticia pendiente');persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
 $('#lab-accept-transfer').addEventListener('click',()=>{
   if(!exercise || !['asignado','atencion'].includes(exercise.state) || !exercise.transferTarget) return $('#lab-brigade').textContent='Primero registra una derivación pendiente en la práctica.';
