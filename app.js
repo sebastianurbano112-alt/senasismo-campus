@@ -318,7 +318,7 @@ $('#practice-cancel-receipt').addEventListener('click', () => {
 
 // Plantillas didácticas: nunca se presentan como orientación aprobada o enviada.
 const messageDemo = document.createElement('div');
-messageDemo.innerHTML = '<h4>Mensaje estructurado de práctica</h4><p>Elige una plantilla ficticia para ensayar la revisión. No se envía a ninguna persona.</p><label for="practice-message">Plantilla de ejemplo</label><select id="practice-message"><option value="">Selecciona una plantilla</option><option value="review">Estamos revisando tu solicitud de práctica</option><option value="update">Consulta el seguimiento de práctica</option><option value="unapproved">Instrucción sin revisión (ejemplo bloqueado)</option></select><button class="button secondary" id="practice-message-send">Registrar mensaje de práctica</button><p id="practice-message-status" role="status"></p>';
+messageDemo.innerHTML = '<h4>Mensaje estructurado de práctica</h4><p>Elige una plantilla ficticia para ensayar la revisión. No se envía a ninguna persona.</p><label for="practice-message">Plantilla de ejemplo</label><select id="practice-message"><option value="">Selecciona una plantilla</option><option value="review">Estamos revisando tu solicitud de práctica</option><option value="update">Consulta el seguimiento de práctica</option><option value="closing">El simulacro de práctica terminó</option><option value="unapproved">Instrucción sin revisión (ejemplo bloqueado)</option></select><button class="button secondary" id="practice-message-send">Registrar mensaje de práctica</button><p id="practice-message-status" role="status"></p>';
 $('#lab-brigade').before(messageDemo);
 $('#practice-message-send').addEventListener('click', () => {
   if (!exercise || !['asignado','atencion'].includes(exercise.state)) {
@@ -329,7 +329,12 @@ $('#practice-message-send').addEventListener('click', () => {
   if (choice === 'unapproved') {
     $('#practice-message-status').textContent = 'Ejemplo retenido para revisión: la instrucción no cuenta con aprobación. No se registró ni envió.'; return;
   }
-  const message = choice === 'review' ? 'Estamos revisando tu solicitud de práctica.' : 'Consulta el seguimiento de práctica.';
+  if (choice === 'closing' && eventDemo.phase !== 'cerrado') {
+    $('#practice-message-status').textContent = 'Ejemplo retenido para revisión: la fase de práctica todavía no está cerrada. No se registró ni envió.'; return;
+  }
+  const templates = {review:'Estamos revisando tu solicitud de práctica.', update:'Consulta el seguimiento de práctica.', closing:'El simulacro de práctica terminó.'};
+  const message = templates[choice];
+  if (!message) { $('#practice-message-status').textContent = 'Selecciona una plantilla válida de práctica.'; return; }
   stampCase('Mensaje ficticio de '+exercise.owner+': '+message);
   exercise.messages.push('Mensaje de práctica de '+exercise.owner+' ('+exercise.updatedAt+'): '+message);
   persistCase(); renderLab();
