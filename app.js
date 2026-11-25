@@ -409,7 +409,25 @@ $('#confirm-cancel-practice').addEventListener('click', () => {
   persistCase(); dismissCancel(); renderLab();
   $('#lab-feedback').textContent='Cancelación pendiente de acuse simulado; no se ha contactado a un servicio.';
 });
-$('#lab-take').addEventListener('click',()=>{if(!exercise||exercise.state!=='recibido')return $('#lab-brigade').textContent='Primero simula el acuse de recepción del caso antes de asignarlo.';exercise.owner='Brigada ficticia';exercise.state='asignado';stampCase('Asignación ficticia');persistCase();renderLab();$('#lab-brigade').textContent='Asignación solo local. No garantiza exclusividad entre dispositivos.'});
+// Ejercicio de conflicto: ambas acciones se ejecutan en este navegador y no coordinan equipos reales.
+const otherTake = document.createElement('button');
+otherTake.type = 'button'; otherTake.className = 'button secondary';
+otherTake.textContent = 'Simular toma por otra brigada';
+$('#lab-take').after(otherTake);
+function simulateTake(owner) {
+  if (!exercise) { $('#lab-brigade').textContent='Primero crea una solicitud de práctica.'; return; }
+  if (!$('#practice-connection').checked) {
+    $('#lab-brigade').textContent='Sin conexión simulada: no se puede confirmar una asignación. El caso conserva su responsable anterior; usa la contingencia de práctica.'; return;
+  }
+  if (exercise.state === 'asignado' || exercise.state === 'atencion') {
+    $('#lab-brigade').textContent='Conflicto simulado: el caso ya está asignado a '+exercise.owner+'. Se conserva el responsable existente.'; return;
+  }
+  if (exercise.state !== 'recibido') { $('#lab-brigade').textContent='Primero simula el acuse de recepción del caso antes de asignarlo.'; return; }
+  exercise.owner=owner; exercise.state='asignado'; stampCase('Asignación ficticia a '+owner); persistCase(); renderLab();
+  $('#lab-brigade').textContent='Asignación confirmada solo en la práctica por '+owner+'. No hay servicio compartido ni exclusividad real entre dispositivos.';
+}
+$('#lab-take').addEventListener('click', () => simulateTake('Brigada ficticia'));
+otherTake.addEventListener('click', () => simulateTake('Otra brigada ficticia'));
 $('#lab-ack').addEventListener('click',()=>{if(!exercise||exercise.state!=='asignado')return $('#lab-brigade').textContent='Primero asigna un caso de práctica.';exercise.messages.push('Acuse ficticio: estamos revisando el caso.');exercise.state='atencion';stampCase('Acuse ficticio registrado');persistCase();renderLab();$('#lab-brigade').textContent='Acuse de práctica registrado localmente; no fue enviado.'});
 $('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;exercise.transferTarget=target;stampCase('Derivación ficticia pendiente');persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
 $('#lab-accept-transfer').addEventListener('click',()=>{
