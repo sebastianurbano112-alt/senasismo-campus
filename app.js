@@ -108,36 +108,60 @@ downloadGuide.addEventListener('click', () => {
 // La confirmación utiliza exactamente los datos revisados y solo crea un caso por operación.
 let reviewedRequest = null;
 let confirmationInProgress = false;
+// Identificación de zona separada de la referencia; ambos datos son ficticios.
+const areaLabel = document.createElement('label');
+areaLabel.htmlFor = 'practice-area';
+areaLabel.textContent = 'Zona de práctica';
+const areaInput = document.createElement('select');
+areaInput.id = 'practice-area';
+for (const label of ['Selecciona una zona', 'Zona A', 'Zona B', 'Otra zona']) {
+  const option = document.createElement('option');
+  option.value = label === 'Selecciona una zona' ? '' : label;
+  option.textContent = label;
+  areaInput.append(option);
+}
+document.querySelector('label[for="zone"]').before(areaLabel, areaInput);
+const locationNote = document.createElement('p');
+locationNote.className = 'fine';
+locationNote.textContent = 'Indica la zona y la referencia manualmente. No se obtiene ni se rastrea tu ubicación automática.';
+areaInput.after(locationNote);
 function invalidateReview() {
   reviewedRequest = null;
   $('#review').hidden = true;
 }
-for (const id of ['need', 'zone', 'note']) {
+for (const id of ['need', 'practice-area', 'zone', 'note']) {
   $('#'+id).addEventListener('input', invalidateReview);
   $('#'+id).addEventListener('change', invalidateReview);
 }
 $('#support-form').addEventListener('submit', e => {
   e.preventDefault();
   const need = $('#need').value;
+  const area = $('#practice-area').value;
   const zone = $('#zone').value.trim();
   const note = $('#note').value.trim();
   $('#need').setAttribute('aria-invalid', String(!need));
+  $('#practice-area').setAttribute('aria-invalid', String(!area));
   $('#zone').setAttribute('aria-invalid', String(!zone));
-  if (!need || !zone) {
+  if (!need || !area || !zone) {
     invalidateReview();
-    $('#form-error').textContent = 'Selecciona un tipo de apoyo e ingresa una referencia de ejemplo.';
-    (!need ? $('#need') : $('#zone')).focus();
+    $('#form-error').textContent = 'Selecciona el tipo de apoyo y la zona e ingresa una referencia de ejemplo.';
+    (!need ? $('#need') : !area ? $('#practice-area') : $('#zone')).focus();
     return;
   }
   $('#form-error').textContent = '';
-  reviewedRequest = {need, zone, note};
-  $('#review-text').textContent = 'Necesidad: '+need+'. Referencia: '+zone+'. Nota: '+(note||'Sin nota')+'.';
+  reviewedRequest = {need, area, zone, note, event:'SIM-001', eventPhase:phases[eventDemo.phase]};
+  $('#review-text').textContent = 'Evento de práctica: '+reviewedRequest.event+' ('+reviewedRequest.eventPhase+'). Necesidad: '+need+'. Zona: '+area+'. Referencia: '+zone+'. Nota: '+(note||'Sin nota')+'. Estos datos permanecen en este navegador.';
   $('#review').hidden = false;
   $('#confirm').focus();
 });
 $('#edit').addEventListener('click', () => { invalidateReview(); $('#need').focus(); });
 $('#confirm').addEventListener('click', () => {
   if (!reviewedRequest || confirmationInProgress) return;
+  if (reviewedRequest.eventPhase !== phases[eventDemo.phase]) {
+    invalidateReview();
+    $('#request-status').textContent = 'La fase del simulacro cambió. Revisa la solicitud nuevamente antes de guardarla.';
+    return;
+  }
   confirmationInProgress = true;
   let activeCase;
   try { activeCase = JSON.parse(store.get('labCase') || 'null'); } catch { activeCase = null; }
@@ -242,13 +266,33 @@ function renderLab() {
   const update = exercise.updatedAt ? ' · Último cambio local: '+exercise.updatedAt : '';
   const lastMessage = exercise.messages?.at(-1) || 'Sin mensajes de práctica.';
   box.textContent='Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+status+' · Responsable de ejemplo: '+exercise.owner+' · Versión '+exercise.version+update+'. '+lastMessage;
-  tracking.textContent='Caso '+exercise.id+' · '+status+' · Referencia: '+exercise.zone+' · Responsable ficticio: '+exercise.owner+update+'. '+lastMessage+' '+exercise.transfer+'. No se ha enviado a una brigada real.';
+  tracking.textContent='Caso '+exercise.id+' · '+status+' · Evento de práctica: '+(exercise.event||'SIM-001')+' · Zona: '+(exercise.area||'No especificada')+' · Referencia: '+exercise.zone+' · Responsable ficticio: '+exercise.owner+update+'. '+lastMessage+' '+exercise.transfer+'. No se ha enviado a una brigada real. Para apoyo real, consulta los canales oficiales de tu institución.';
   const history = Array.isArray(exercise.history) ? exercise.history : [];
   $('#tracking-history').textContent = history.length ? 'Historial local de práctica: '+history.map(entry=>entry.time+' — '+entry.action).join(' | ') : 'Sin historial detallado para este caso guardado anteriormente.';
   const visible=$('#lab-filter').value==='todos'||$('#lab-filter').value===exercise.state;
   queue.textContent=visible ? 'Caso '+exercise.id+' · '+exercise.need+' · '+exercise.zone+' · '+status+' · '+exercise.time+' · '+exercise.transfer : 'Ningún caso coincide con el filtro. El filtro no elimina datos.';
 }
 function stampCase(action) { exercise.updatedAt = new Date().toLocaleString('es-PE'); if (!Array.isArray(exercise.history)) exercise.history = []; exercise.history.push({time:exercise.updatedAt,action}); }
+
+// Plantillas didácticas: nunca se presentan como orientación aprobada o enviada.
+const messageDemo = document.createElement('div');
+messageDemo.innerHTML = '<h4>Mensaje estructurado de práctica</h4><p>Elige una plantilla ficticia para ensayar la revisión. No se envía a ninguna persona.</p><label for="practice-message">Plantilla de ejemplo</label><select id="practice-message"><option value="">Selecciona una plantilla</option><option value="review">Estamos revisando tu solicitud de práctica</option><option value="update">Consulta el seguimiento de práctica</option><option value="unapproved">Instrucción sin revisión (ejemplo bloqueado)</option></select><button class="button secondary" id="practice-message-send">Registrar mensaje de práctica</button><p id="practice-message-status" role="status"></p>';
+$('#lab-brigade').before(messageDemo);
+$('#practice-message-send').addEventListener('click', () => {
+  if (!exercise || !['asignado','atencion'].includes(exercise.state)) {
+    $('#practice-message-status').textContent = 'Primero asigna un caso de práctica.'; return;
+  }
+  const choice = $('#practice-message').value;
+  if (!choice) { $('#practice-message-status').textContent = 'Selecciona una plantilla de ejemplo.'; return; }
+  if (choice === 'unapproved') {
+    $('#practice-message-status').textContent = 'Ejemplo retenido para revisión: la instrucción no cuenta con aprobación. No se registró ni envió.'; return;
+  }
+  const message = choice === 'review' ? 'Estamos revisando tu solicitud de práctica.' : 'Consulta el seguimiento de práctica.';
+  stampCase('Mensaje ficticio de '+exercise.owner+': '+message);
+  exercise.messages.push('Mensaje de práctica de '+exercise.owner+' ('+exercise.updatedAt+'): '+message);
+  persistCase(); renderLab();
+  $('#practice-message-status').textContent = 'Mensaje registrado solo en este navegador. No fue enviado ni aprobado institucionalmente.';
+});
 
 $('#lab-filter').addEventListener('change',renderLab);$('#lab-save').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='Primero guarda una solicitud de prueba.';let z=$('#lab-update').value.trim();if(!z)return $('#lab-feedback').textContent='Escribe una referencia de ejemplo.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó; crea otra práctica si necesitas continuar.';exercise.zone=z;exercise.version++;stampCase('Referencia actualizada en práctica');persistCase();renderLab();$('#lab-feedback').textContent='Referencia actualizada en este navegador; no se ha enviado a nadie.'});
 $('#lab-cancel').addEventListener('click',()=>{if(!exercise)return $('#lab-feedback').textContent='No hay solicitud para cancelar.';if(['cerrado','cancelada'].includes(exercise.state))return $('#lab-feedback').textContent='El caso de práctica ya terminó.';if(!confirm('¿Cancelar esta solicitud de práctica local?'))return;exercise.state='cancelada';exercise.version++;stampCase('Solicitud cancelada en práctica');persistCase();renderLab();$('#lab-feedback').textContent='Práctica cancelada localmente; no existe acuse de un servicio.'});
