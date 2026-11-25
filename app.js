@@ -450,14 +450,28 @@ deliverAck.addEventListener('click', () => {
   persistCase(); renderLab();
   $('#lab-brigade').textContent='Entrega del acuse simulada solo en este navegador. No se ha contactado a una brigada ni prometido un tiempo de llegada.';
 });
-$('#lab-transfer').addEventListener('click',()=>{let target=$('#lab-destination').value,reason=$('#lab-reason').value.trim();if(!exercise||!['asignado','atencion'].includes(exercise.state)||!target||!reason)return $('#lab-brigade').textContent='Selecciona un caso asignado, un destino y un motivo.';exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;exercise.transferTarget=target;stampCase('Derivación ficticia pendiente');persistCase();renderLab();$('#lab-brigade').textContent='La derivación es ficticia y el responsable anterior se conserva.'});
+$('#lab-transfer').addEventListener('click', () => {
+  const target=$('#lab-destination').value, reason=$('#lab-reason').value.trim();
+  const allowedTargets=['Equipo de apoyo ficticio','Seguridad ficticia'];
+  if (!exercise || !['asignado','atencion'].includes(exercise.state) || !allowedTargets.includes(target) || !reason) { $('#lab-brigade').textContent='Selecciona un caso asignado, un destino de ejemplo y un motivo.'; return; }
+  if (exercise.transferTarget) { $('#lab-brigade').textContent='Ya hay una derivación ficticia pendiente; se conserva el responsable y destino anteriores.'; return; }
+  if (exercise.ackPending) { $('#lab-brigade').textContent='Primero completa el acuse de atención pendiente antes de derivar el caso de práctica.'; return; }
+  if (target === exercise.owner) { $('#lab-brigade').textContent='Elige un destino ficticio distinto del responsable actual.'; return; }
+  exercise.transfer='Derivación pendiente a '+target+'; motivo: '+reason;
+  exercise.transferTarget=target; exercise.transferReason=reason;
+  stampCase('Derivación ficticia pendiente a '+target+'; motivo: '+reason); persistCase(); renderLab();
+  $('#lab-brigade').textContent=$('#practice-connection').checked ? 'Derivación de práctica pendiente: el responsable anterior se conserva hasta la aceptación simulada.' : 'Sin conexión simulada: derivación de práctica pendiente. Conserva al responsable anterior y consulta los canales oficiales de tu institución.';
+});
 $('#lab-accept-transfer').addEventListener('click',()=>{
   if(!exercise || !['asignado','atencion'].includes(exercise.state) || !exercise.transferTarget) return $('#lab-brigade').textContent='Primero registra una derivación pendiente en la práctica.';
+  if(!$('#practice-connection').checked) return $('#lab-brigade').textContent='Sin conexión simulada: no se puede confirmar la aceptación. La derivación sigue pendiente y conserva al responsable anterior.';
   const target = exercise.transferTarget;
+  const reason = exercise.transferReason || 'Motivo de práctica registrado anteriormente';
   exercise.owner = target;
-  exercise.transfer = 'Derivación aceptada en práctica por '+target;
+  exercise.transfer = 'Derivación aceptada en práctica por '+target+'; motivo: '+reason;
   delete exercise.transferTarget;
-  stampCase('Aceptación ficticia de derivación por '+target);
+  delete exercise.transferReason;
+  stampCase('Aceptación ficticia de derivación por '+target+'; motivo: '+reason);
   persistCase(); renderLab();
   $('#lab-brigade').textContent='Aceptación simulada guardada solo en este navegador; no se notificó a ningún equipo.';
 });
@@ -470,6 +484,7 @@ function dismissClose() { pendingClose = null; closeReview.hidden = true; }
 $('#lab-result').addEventListener('change', dismissClose);
 $('#lab-close').addEventListener('click', () => {
   const result = $('#lab-result').value;
+  if (exercise?.transferTarget) { dismissClose(); $('#lab-brigade').textContent = 'La derivación sigue pendiente. Completa su aceptación de práctica antes de cerrar el caso.'; return; }
   if (!exercise || !['asignado','atencion'].includes(exercise.state) || !result) {
     dismissClose(); $('#lab-brigade').textContent = 'Selecciona un caso asignado y un resultado.'; return;
   }
@@ -479,7 +494,7 @@ $('#lab-close').addEventListener('click', () => {
 });
 $('#cancel-close').addEventListener('click', () => { dismissClose(); $('#lab-brigade').textContent = 'El caso conserva su estado de práctica.'; $('#lab-close').focus(); });
 $('#confirm-close').addEventListener('click', () => {
-  if (!pendingClose || !exercise || exercise.id !== pendingClose.id || !['asignado','atencion'].includes(exercise.state) || $('#lab-result').value !== pendingClose.result) {
+  if (!pendingClose || !exercise || exercise.transferTarget || exercise.id !== pendingClose.id || !['asignado','atencion'].includes(exercise.state) || $('#lab-result').value !== pendingClose.result) {
     dismissClose(); $('#lab-brigade').textContent = 'El caso o el resultado cambió. Revisa el cierre nuevamente.'; return;
   }
   const result = pendingClose.result;
