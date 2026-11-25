@@ -271,7 +271,7 @@ renderDirectoryDemo();
 renderRoleDemo();
 // Seguimiento accesible del caso simulado junto al formulario de la persona usuaria.
 const caseTracking = document.createElement('div');
-caseTracking.innerHTML = '<h4>Seguimiento de práctica</h4><p id="tracking-status" role="status" aria-live="polite"></p><p id="tracking-history"></p><a href="#laboratorio">Ver la coordinación de práctica</a><p class="fine">Los estados y mensajes son ficticios y solo existen en este navegador.</p>';
+caseTracking.innerHTML = '<h4>Seguimiento de práctica</h4><p id="tracking-status" role="status" aria-live="polite"></p><p id="tracking-history"></p><a href="#laboratorio">Ver la coordinación de práctica</a><p><a href="#directory-demo-title">Ver alternativas de ejemplo (no son contactos reales)</a></p><p class="fine">Los estados y mensajes son ficticios y solo existen en este navegador.</p>';
 $('#request-status').after(caseTracking);
 let exercise=null; try{exercise=JSON.parse(store.get('labCase')||'null')}catch{};
 let draft=null; try{draft=JSON.parse(store.get('labDraft')||'null')}catch{};
@@ -351,6 +351,31 @@ $('#lab-accept-transfer').addEventListener('click',()=>{
   persistCase(); renderLab();
   $('#lab-brigade').textContent='Aceptación simulada guardada solo en este navegador; no se notificó a ningún equipo.';
 });
-$('#lab-close').addEventListener('click',()=>{let result=$('#lab-result').value;if(!exercise||!['asignado','atencion'].includes(exercise.state)||!result)return $('#lab-brigade').textContent='Selecciona un caso asignado y un resultado.';if(!confirm('¿Cerrar este caso de práctica?'))return;exercise.state='cerrado';exercise.messages.push('Resultado simulado: '+result);stampCase('Cierre ficticio: '+result);persistCase();renderLab();$('#lab-brigade').textContent='Caso de práctica cerrado localmente.'});
+const closeReview = document.createElement('div');
+closeReview.hidden = true;
+closeReview.innerHTML = '<p id="close-review-text"></p><button type="button" class="button primary" id="confirm-close">Confirmar cierre de práctica</button> <button type="button" class="button secondary" id="cancel-close">Volver sin cerrar</button>';
+$('#lab-close').after(closeReview);
+let pendingClose = null;
+function dismissClose() { pendingClose = null; closeReview.hidden = true; }
+$('#lab-result').addEventListener('change', dismissClose);
+$('#lab-close').addEventListener('click', () => {
+  const result = $('#lab-result').value;
+  if (!exercise || !['asignado','atencion'].includes(exercise.state) || !result) {
+    dismissClose(); $('#lab-brigade').textContent = 'Selecciona un caso asignado y un resultado.'; return;
+  }
+  pendingClose = {id:exercise.id, result};
+  $('#close-review-text').textContent = 'Revisa el cierre de práctica del caso '+exercise.id+': '+result+'. No se notificará a una brigada real.';
+  closeReview.hidden = false; $('#confirm-close').focus();
+});
+$('#cancel-close').addEventListener('click', () => { dismissClose(); $('#lab-brigade').textContent = 'El caso conserva su estado de práctica.'; $('#lab-close').focus(); });
+$('#confirm-close').addEventListener('click', () => {
+  if (!pendingClose || !exercise || exercise.id !== pendingClose.id || !['asignado','atencion'].includes(exercise.state) || $('#lab-result').value !== pendingClose.result) {
+    dismissClose(); $('#lab-brigade').textContent = 'El caso o el resultado cambió. Revisa el cierre nuevamente.'; return;
+  }
+  const result = pendingClose.result;
+  exercise.state = 'cerrado'; exercise.messages.push('Resultado simulado: '+result);
+  stampCase('Cierre ficticio: '+result); persistCase(); dismissClose(); renderLab();
+  $('#lab-brigade').textContent = 'Caso de práctica cerrado localmente. No se notificó a una brigada.';
+});
 $('#draft-save').addEventListener('click',()=>{let action=$('#draft-action').value.trim();if(!action)return $('#draft-status').textContent='Escribe una instrucción de ejemplo.';draft={phase:$('#draft-phase').value,action,version:(draft?.version||0)+1,state:'borrador'};store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Borrador de prueba v'+draft.version+' guardado; no está aprobado ni publicado.'});$('#draft-review').addEventListener('click',()=>{if(!draft)return $('#draft-status').textContent='Primero crea un borrador de prueba.';draft.state='revision-simulada';store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Revisión registrada como ejercicio; no sustituye una revisión experta ni autoriza una alerta.'});$('#draft-publish').addEventListener('click',()=>{if(!draft||draft.state!=='revision-simulada')return $('#draft-status').textContent='Debes guardar y revisar el borrador de práctica.';draft.state='publicado-solo-en-practica';store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Versión '+draft.version+' mostrada solo en esta práctica: '+draft.action+' No se emitió un aviso real.'});
 $('#support-form').addEventListener('submit',()=>setTimeout(renderLab,50));$('#confirm').addEventListener('click',()=>setTimeout(renderLab,50));$('#clear-request').addEventListener('click',()=>{exercise=null;store.remove('labCase');renderLab()});renderLab();
