@@ -208,6 +208,8 @@ $('#confirm').addEventListener('click', () => {
     if (safetyUpdated) renderDeclaration();
     else $('#declaration').textContent = 'No se pudo actualizar la declaración de seguridad local. Revísala manualmente.';
     invalidateReview();
+    // Crear el caso antes de aceptar otra interacción evita duplicados en esta sesión.
+    renderLab();
     $('#request-status').textContent = 'Simulación '+record.id+' guardada localmente. No fue enviada ni recibida por una brigada.';
   } else {
     $('#request-status').textContent = 'No fue posible guardar la simulación. Puedes volver a intentarlo.';
