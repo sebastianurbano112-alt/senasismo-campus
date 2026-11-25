@@ -271,8 +271,17 @@ renderDirectoryDemo();
 renderRoleDemo();
 // Seguimiento accesible del caso simulado junto al formulario de la persona usuaria.
 const caseTracking = document.createElement('div');
-caseTracking.innerHTML = '<h4>Seguimiento de práctica</h4><p id="tracking-status" role="status" aria-live="polite"></p><p id="tracking-history"></p><a href="#laboratorio">Ver la coordinación de práctica</a><p><a href="#directory-demo-title">Ver alternativas de ejemplo (no son contactos reales)</a></p><p class="fine">Los estados y mensajes son ficticios y solo existen en este navegador.</p>';
+caseTracking.innerHTML = '<h4>Seguimiento de práctica</h4><p id="tracking-status" role="status" aria-live="polite"></p><p id="tracking-history"></p><h4>Cierres de práctica guardados</h4><p class="fine">Se conservan hasta diez cierres locales; no son registros oficiales.</p><p id="closed-history" role="status"></p><button type="button" class="textbutton" id="clear-closed-history">Eliminar cierres de práctica guardados</button><p><a href="#laboratorio">Ver la coordinación de práctica</a></p><p><a href="#directory-demo-title">Ver alternativas de ejemplo (no son contactos reales)</a></p><p class="fine">Los estados y mensajes son ficticios y solo existen en este navegador.</p>';
 $('#request-status').after(caseTracking);
+function readClosedHistory() {
+  try { const records=JSON.parse(store.get('practiceClosedHistory') || '[]'); return Array.isArray(records) ? records : []; } catch { return []; }
+}
+function renderClosedHistory() {
+  const records=readClosedHistory();
+  $('#closed-history').textContent=records.length ? records.map(record => 'Caso '+record.id+' · '+record.time+' · Resultado de práctica: '+record.result).join(' | ') : 'No hay cierres de práctica guardados.';
+}
+$('#clear-closed-history').addEventListener('click', () => { store.remove('practiceClosedHistory'); renderClosedHistory(); });
+renderClosedHistory();
 // Panel de alcance exclusivamente visual: no implementa autorización ni sincronización reales.
 const scopeDemo = document.createElement('div');
 scopeDemo.innerHTML = '<p class="fine"><strong>Ámbito de práctica:</strong> las restricciones y la conexión son ficticias. No hay inicio de sesión, permisos reales ni sincronización entre dispositivos.</p><label class="check"><input type="checkbox" id="scope-authorized" checked> Simular autorización para Campus Demo</label><label for="scope-campus">Campus de ejemplo</label><select id="scope-campus"><option>Campus Demo</option><option>Otro campus ficticio</option></select><label for="scope-event">Evento de ejemplo</label><select id="scope-event"><option>SIM-001</option><option>SIM-002</option></select><label for="scope-zone">Zona asignada de ejemplo</label><select id="scope-zone"><option>Todas las zonas</option><option>Zona A</option><option>Zona B</option><option>Otra zona</option></select><button type="button" class="button secondary" id="scope-sync">Simular sincronización</button><p id="scope-status" role="status"></p>';
@@ -499,8 +508,12 @@ $('#confirm-close').addEventListener('click', () => {
   }
   const result = pendingClose.result;
   exercise.state = 'cerrado'; exercise.messages.push('Resultado simulado: '+result);
-  stampCase('Cierre ficticio: '+result); persistCase(); dismissClose(); renderLab();
-  $('#lab-brigade').textContent = 'Caso de práctica cerrado localmente. No se notificó a una brigada.';
+  stampCase('Cierre ficticio: '+result);
+  const history=readClosedHistory();
+  history.push({id:exercise.id,time:exercise.updatedAt,result});
+  const archived=store.set('practiceClosedHistory',JSON.stringify(history.slice(-10)));
+  persistCase(); dismissClose(); renderLab(); renderClosedHistory();
+  $('#lab-brigade').textContent = archived ? 'Caso de práctica cerrado localmente. No se notificó a una brigada.' : 'Caso cerrado en práctica, pero no se pudo guardar el historial de cierres en este navegador.';
 });
 $('#draft-save').addEventListener('click',()=>{let action=$('#draft-action').value.trim();if(!action)return $('#draft-status').textContent='Escribe una instrucción de ejemplo.';draft={phase:$('#draft-phase').value,action,version:(draft?.version||0)+1,state:'borrador'};store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Borrador de prueba v'+draft.version+' guardado; no está aprobado ni publicado.'});$('#draft-review').addEventListener('click',()=>{if(!draft)return $('#draft-status').textContent='Primero crea un borrador de prueba.';draft.state='revision-simulada';store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Revisión registrada como ejercicio; no sustituye una revisión experta ni autoriza una alerta.'});$('#draft-publish').addEventListener('click',()=>{if(!draft||draft.state!=='revision-simulada')return $('#draft-status').textContent='Debes guardar y revisar el borrador de práctica.';draft.state='publicado-solo-en-practica';store.set('labDraft',JSON.stringify(draft));$('#draft-status').textContent='Versión '+draft.version+' mostrada solo en esta práctica: '+draft.action+' No se emitió un aviso real.'});
 $('#support-form').addEventListener('submit',()=>setTimeout(renderLab,50));$('#confirm').addEventListener('click',()=>setTimeout(renderLab,50));$('#clear-request').addEventListener('click',()=>{exercise=null;store.remove('labCase');renderLab()});renderLab();
